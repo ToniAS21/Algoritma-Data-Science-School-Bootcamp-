@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+	<link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
+    ></link>
+
+
+</head>
+
+<body>
+	<div class="container-fluid">
+			<div class="row">
+				<div class="col-md-10 col-lg-8 col-sm-10">
+					<br>
+					<br>
+					<h1 class="mb-2">
+						Capstone Webscrapping using BeautifulSoup 
+					</h1>
+					<h3>
+						By : Toni Andreas Susanto
+					</h3>
+					<br>
+					
+
+
+					<br>
+				</div>
+			</div>
+		<div class="row">
+			<div class="col-md-4 col-lg-4 col-sm-4">
+				<div class="card card-stats">
+					<div class="card-header">
+						<div class="card-icon">
+							<i></i>
+						</div>
+						<h2 class="card-title">
+							{{ card_data }}
+						</h2>
+						<h4 class="card-category">
+							Rata-Rata Nilai Tukar Selama Januari-Juli 2022 
+						</h4>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="row">
+			<div class="col-md-12 col-lg-12 col-sm-12">
+				<div class="tab">
+					<button class="tablinks" onclick="openTab(event, 'Intro')" id="defaultOpen">Pengenalan
+					</button>
+					<button class="tablinks" onclick="openTab(event, 'profile') ">Visualisasi
+					</button>
+					<button class="tablinks" onclick="openTab(event, 'Own')">Penjelasan
+					</button>
+					
+				</div>
+			</div>
+		</div>
+		<div class="row">
+			<div class="col-md-12 col-lg-12 col-sm-12">
+			<!-- Tab content -->
+				<div id="Intro" class="tabcontent">
+					<br>
+					<h3 style="color: #333333;text-align:left"><b>1. Pengenalan Diri</b></h3>
+						<p style="color: #000000;text-align:justify">
+							Halo semua perkenalkan saya Toni Andreas Susanto, biasa dipanggil Toni. 
+							Saya merupakan mahasiswa program studi Ekonomi Pembangunan, di 
+							Universitas Mulawarman. Saya mempelajari <i>data analytic</i> bertujuan menambah 
+							skil saya dalam mengolah data. Skil ini sangat berkaitan erat dengan jurusan 
+							kuliah saya karena dalam membuat suatu keputusan ekonomi atau kebijakan 
+							ekonomi mesti didasarkan oleh data agar dapat menyusun keputusan yang efektif.
+						</p>
+					<br>
+
+					<h3 style="color: #333333;text-align:left"><b>2. Pengenalan Project </b></h3>
+						<p style="color: #000000;text-align:justify">Projek ini dikembangkan
+							sebagai salah satu capstone project dari 
+							<a id="link1" href="https://algorit.ma/">Algoritma</a>
+							Academy Data Analytics Specialization. Project ini berisi 
+							bagaimana kita mengambil data dari suatu website (<i>webscrapping</i>.). 
+							Teknik <i>Web scaripping</i> ini menggunakan bantuan <i>library</i> 
+							<a id="link2" href="https://beautiful-soup-4.readthedocs.io/en/latest/"><b>BeautifulSoup</b></a>
+							Website yang digunakan untuk scarping berasal dari 
+							<a id="link3" href="https://www.exchange-rates.org/history/IDR/USD/T">EXCHANGE-RATES.ORG</a>.
+							Kemudian saya juga menambahkan data inflasi dan tingkat suku bunga US agar dapat menjelaskan pergerakan 
+							nilai tukar rupiah. Selain itu, data yang saya gunakan sudah dilengkapi visualisasi dari
+							<a id="link4" href="https://matplotlib.org/">Matplotlib</a>.
+					<br>
+					<br>
+			
+					<h3 style="color: #333333;text-align:left"><b>3. Pengenalan BeautifulSoup</b></h3>
+					<p style="color: #000000;text-align:justify">Beautiful Soup adalah pustaka Python untuk menarik 
+						data dari file HTML dan XML. Beautiful Soup 3 hanya berfungsi di Python 2.x, tetapi Beautiful 
+						Soup 4 juga berfungsi di Python 3.x. Beautiful Soup 4 lebih cepat, memiliki lebih banyak fitur, 
+						dan bekerja dengan parser pihak ketiga seperti lxml dan html5lib. 
+					</p>	
+					<p style="color: #000000;text-align:justify">	
+						Karena beautifulsoup digunakan untuk menarik data dari HTML, jadi pertama-tama kita harus mengeluarkan 
+						htmlnya terlebih dahulu. Bagaimana kita melakukannya? Kami akan menggunakan permintaan dengan <i>library</i> <b>default</b>. 
+					</p>
+					<p style="color: #000000;text-align:justify">	
+						Jadi semua kode ini lakukan adalah mengirimkan permintaan GET ke alamat tertentu yang kami berikan. Ini adalah jenis 
+						permintaan yang sama yang dikirim browser Anda untuk melihat halaman ini, tetapi satu-satunya perbedaan adalah bahwa 
+						Permintaan tidak dapat benar-benar merender HTML, jadi Anda hanya akan mendapatkan HTML mentah dan informasi respons 
+						lainnya. <a id="link2" href="https://beautiful-soup-4.readthedocs.io/en/latest/"><b>Dokumentasi BeautifulSoup</b></a>
+					</p>
+					<br>
+				</div>	
+
+			<!-- Tab content -->
+				<div id="profile" class="tabcontent">
+					<br>
+					<h3 style="color: #333333;text-align:center"><b>Pergerakan Nilai Tukar USD-IDR</b></h3>
+					<h5 style="color: #333333;text-align:center"><i>Periode Januari - Juli 2022</i></h5>
+					<div class="img-container">
+						{% if funded_plot != None %}
+					  <img src="data:image/png;base64,{{ plot_result }}" >
+						{% endif %}
+					</div>
+					<br>
+					<h3><b>AA</b></h3>
+					<br>
+
+					<h3 style="color: #333333;text-align:center"><b>Tingkat Inflasi dan Suku Bunga US</b></h3>
+					<h5 style="color: #333333;text-align:center"><i>Periode Januari - Juni 2022</i></h5>
+					<div class="img-container">
+						{% if funded_plot != None %}
+					  <img src="data:image/png;base64,{{ plot_result_1 }}" >
+						{% endif %}
+					</div>
+					
+				</div>
+
+			<!-- Tab content -->
+				<div id="Own" class="tabcontent">
+					<br>
+					<!-- Define your own analysis for extra challange -->
+					<h3 style="color: #333333;text-align:left"><b>1. Analysis</b></h3>
+						<p style="color: #000000;text-align:justify">Kita menyadari pergerakan nilai tukar 
+								rupiah terhadap dolar AS cenderung ditentukan oleh banyak faktor
+								makroekonomi dan mikroekonomi, termasuk gejolak domestik maupun luar negeri. 
+								Nilai tukar mata uang suatu negara sangat dipengaruhi oleh berbagai hal seperti 
+								kondisi pertumbuhan ekonomi, kestabilan politik, perdagangan luar negeri,
+								kebijakan negara lain dan masih banyak lagi. Oleh karena itu, pada kesempatan
+								kali ini saya ingin mengulas hanya dari salah satu faktor saja yaitu tingkat 
+								inflasi dan suku bunga the Fed (faktor kebijakan negara lain).
+						</p>
+						<p style="color: #000000;text-align:justify">Kita mengetahui pada Februari 2022 
+								kemarin Rusia melakukan invasi ke Ukraina. Pada mulanya belum terlalu berdampak 
+								ke ekonomi amerika serikat. Namun seiring waktu perang tersebut berdampak
+								bagi perekonomian global termasuk AS karena Rusia dan Ukraina merupakan
+								negara penghasil produk pangan global. Hal ini pun selaras terlihat pada
+								plot 2, cenderung tingkat inflasi AS selalu tinggi di atas 7% dari Januari-Mei,
+								padahal target inflasi yang ditetapkan oleh the Fed (Bank Sentral AS) hanya 2%.
+								Tingkat inflasi yang tinggi ini membuat the Fed mesti melakukan solusi, seperti 
+								kebijakan pengetatan moneter (<i>tight monetary policy</i>) alias kebijakan 
+							    moneter kontraktif. Kebijakan ini sederhananya adalah bank sentral mendorong
+								agar uang yang beredar di masyarakat berkurang sehingga harapannya daya beli 
+								masyarakat berkurang sehingga tingkat inflasi dapat ditekan menurun. 
+								Contoh kebijakan ini adalah menaikkan suku bunga, dengan menaikkan suku bunga 
+								harapannya masyarakat cenderung menabung dan mengurangi konsumsi kredit karena 
+								suku bunga pinjaman ikut naik. Dengan adanya kenaikan suku bunga ini cenderung
+								mendorong investor dan spekulan untuk menarik uang mereka dari Indonesia (alias 
+								menukarkan mata uang rupiah dengan dolar AS) karena terdapat benefit bunga yang
+								menarik (suku bunga meningkat) sehingga akan menekan nilai rupiah yang semakin anjlok.
+						</p>
+						<p style="color: #000000;text-align:justify">Uraian di atas tergambar dari plot yang 
+							telah dihasilkan. Pada 1 terlihat selama awal Januari hingga akhir April cenderung 
+							pergerakan nilai tukar rupiah terhadap dolar US cenderung memiliki range trend yang 
+							tidak begitu signifikan. Namun, ketika bank sentral AS mulai melakukan tindakan untuk 
+							mengatasi inflasi dengan menaikan suku bunga 100% dari 0.5% menjadi 1% (April-Mei) 
+							kemudian menaikan lagi 75% dari 1% menjadi 1.75% (Mei-Juni) menimbulkan nilai
+							tukar rupiah berubah melemah signifikan terhadap dolar AS dan pada 5 Juli 2022
+							kemarin mencapai Rp. 15014.65 per 1 $ alias nilai tertinggi diantara Januari hingga
+							Juli 2022.
+						</p>
+					<br>
+					<h3 style="color: #333333;text-align:left"><b>2. Conclusion</b></h3>
+					<p style="color: #000000;text-align:justify">
+						Pada uraian materi dan code di atas kita telah melihat bagaimana 
+						melakukan <i>web scrapping</i> dengan bantuan <b>BeautifulSoup</b>. 
+						Dengan bantuan <b>BeautifulSoup</b> dan terkhusus pemrograman 
+						cenderung kita bisa lebih mudah mendapatkan informasi dari 
+						internet tanpa melakukannya secara manual. Kemudian setelah 
+						mendapatkan informasi tersebut kita dapat menyimpannya dalam 
+						dataframe. Selanjutnya kita susun dan bersihkan 
+						(<i>data wrangling and data cleansing</i>) sehingga nantinya 
+						dapat diolah dengan melakukan visualisasi melalui <b>matplotlib</b> 
+						dan <b>plotly</b>. Selain itu, kita juga telah menganalisis dari 
+						salah satu faktor yang mempengaruhi pergerakan nilai tukar rupiah terhadap dolar AS.
+					</p>
+					
+		  
+				</div>
+				<div id="Add" class="tabcontent">
+					<br>
+					<h3 style="color: #333333;text-align:left"><b>2. Conclusion</b></h3>
+						<p style="color: #000000;text-align:justify">Halo</p>
+
+				</div>
+
+			</div>
+		 </div>
+	</div>
+</body>
+				
+				
+<script type="text/javascript">
+function openTab(evt, idName) {
+	// Declare all variables
+	var i, tabcontent, tablinks;
+
+	// Get all elements with class="tabcontent" and hide them
+	tabcontent = document.getElementsByClassName("tabcontent");
+	for (i = 0; i < tabcontent.length; i++) {
+	tabcontent[i].style.display = "none";
+	}
+
+	// Get all elements with class="tablinks" and remove the class "active"
+	tablinks = document.getElementsByClassName("tablinks");
+	for (i = 0; i < tablinks.length; i++) {
+	tablinks[i].className = tablinks[i].className.replace(" active", "");
+	}
+
+	// Show the current tab, and add an "active" class to the button that opened the tab
+	document.getElementById(idName).style.display = "block";
+	evt.currentTarget.className += " active";
+
+	}
+	document.getElementById("defaultOpen").click();
+</script>
