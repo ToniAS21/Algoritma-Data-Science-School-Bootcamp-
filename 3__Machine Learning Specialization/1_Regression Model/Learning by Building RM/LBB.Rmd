@@ -1,0 +1,502 @@
+---
+title: "Prediksi Harga Rumah"
+author: "Toni Andreas Susanto"
+date: "8/12/2022"
+output:
+  rmdformats::readthedown:
+    df_print: paged
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+# clear-up the environment
+rm(list = ls())
+
+# chunk options
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  comment = "#>"
+)
+
+options(scipen = 999)
+```
+
+
+# Pendahuluan
+
+<p style="color: #000000;text-align:justify">
+Seperti yang kita ketahui, harga rumah cenderung sangat beragam, ada yang relatif sangat mahal ataupun murah. Pada kenyataannya kita sulit menentukan seberapa besar harga rumah berdasarkan berbagai fitur-fitur atau fasilitas yang ada di dalam rumah. Kadang ada sebuah rumah yang memiliki luas lebih kecil dan sedikit kamar mandi dan sebagainya tetapi harganya relatif lebih mahal karena terletak di kota yang berbeda. Oleh karena itu, pada kesempatan ini saya mencoba membangun model yang dapat memprediksi harga rumah berdasarkan beberapa informasi fitur-fitur atau fasilitas yang ada dalam rumah alias menggunakan prediktor. Saya membangun model ini menggunakan dataset dari kaggle [berikut](https://www.kaggle.com/datasets/greenwing1985/housepricing). 
+</p>
+
+# Persiapan dan Wrangling Data
+
+## Pustaka
+
+```{r}
+library(tidyverse)
+library(caTools)
+library(GGally)
+library(ggplot2)
+library(plotly)
+library(rsample)
+library(MLmetrics)
+library(lmtest)
+library(car)
+```
+
+## Membaca Dataset
+
+```{r}
+house <- read.csv("HousePrices_HalfMil.csv")
+house
+```
+
+Deskripsi Kolom :
+
+- `Area` : Luas rumah atau bangunan.
+- `Garage` : Jumlah Garasi pada rumah.
+- `FirePlace` : Jumlah tempat perapian.
+- `Baths` : Jumlah Kamar mandi.
+- `White.Marble` : Apakah menggunakan marmer putih; 1 (ya) ; 0 (tidak).
+- `Black.Marble` : Apakah menggunakan marmer hitam; 1 (ya) ; 0 (tidak).
+- `Indian.Marble` : Apakah menggunakan marmer India; 1 (ya) ; 0 (tidak).
+- `Floors` : Apakah menggunakan keramik; 1 (ya) ; 0 (tidak).
+- `City` : Terletak di kota mana (Terdapat kategori 3, 2, 1)
+- `Solar` : Apakah menggunakan panel surya; 1 (ya) ; 0 (tidak).
+- `Electric` : Apakah menggunakan Electric ; 1 (ya) ; 0 (tidak).
+- `Fiber` : Apakah menggunakan Fiber ; 1 (ya) ; 0 (tidak).
+- `Glass.Doors` : Apakah terdapat Glass Doors ; 1 (ya) ; 0 (tidak).
+- `Swiming.Pool` : Apakah terdapat Swiming Pool ; 1 (ya) ; 0 (tidak).
+- `Garden` : Apakah terdapat Taman ; 1 (ya) ; 0 (tidak).
+- `Prices` : Harga rumah.
+
+
+## Mengecek Nilai Hilang
+
+```{r}
+anyNA(house)
+```
+
+Tidak ada data yang hilang (*missing value*) sehingga kita dapat melanjutkan ke tahap selanjutnya.
+
+
+## Mengecek Duplikasi Data
+
+```{r}
+anyDuplicated(house)
+```
+
+Ternyata terdapat data yang terduplikasi sehingga sebaiknya kita menghapus data duplikasi tersebut dengan fungsi `distinct()`
+
+```{r}
+house <- house %>% distinct()
+
+anyDuplicated(house)
+```
+
+## Asumsi Linearitas
+
+```{r}
+ggcorr(data = house, label = T, hjust = 1, layout.exp = 3)
+```
+
+- Variabel `Indian.Marble`, `Black.Marble`, `White.Marble` memiliki hubungan yang saling mempengaruhi sehingga sebaiknya memilih salah satu variabel aja agar tidak menghasilkan model redundan. 
+
+- Variabel yang memiliki korelasi yang baik dengan kelas target (`Prices`) adalah `Floors` dan `Fiber`.
+
+- Terdapat pula variabel yang tidak memiliki hubungan dengan kelas target (Korelasinya = 0) yaitu `Garden`, `Swiming.Pool` dan `Solar`.
+
+## Mengecek Struktur Data
+
+```{r}
+glimpse(house)
+```
+
+## Menyesuaikan Tipe Data
+
+```{r}
+lapply(X = house[, 2:12],
+       FUN = unique)
+```
+
+Menghapus variable `Black.Marble` dan `Indian.Marble` untuk menghindari model redundan sehingga hanya menggunakan variable `White.Marble` karena variable ini dapat menghubungkan korelasi `Black.Marble` & `Indian.Marble` dengan `Black.Marble` & `White.Marble`.
+
+Kita juga menyesuaikan tipe data factor untuk kolom yang memiliki nilai berulang.
+
+```{r}
+house_clean <- 
+  house %>% 
+  select(-c(Black.Marble, Indian.Marble)) %>% 
+  mutate(
+   Garage = as.factor(Garage),
+   FirePlace = as.factor(FirePlace),
+   Baths = as.factor(Baths),
+   White.Marble = as.factor(White.Marble),
+   Floors = as.factor(Floors),
+   City = as.factor(City),
+   Solar = as.factor(Solar),
+   Electric = as.factor(Electric),
+   Glass.Doors = as.factor(Glass.Doors),
+   Swiming.Pool = as.factor(Swiming.Pool),
+   Garden = as.factor(Garden),
+   Fiber = as.factor(Fiber)
+) 
+```
+
+
+
+# Eksplorasi Data Analisis
+
+## Persebaran Harga di Setiap Kota
+  
+
+```{r}
+box <- 
+ggplot(data = house_clean, aes(x = City, y = Prices)) +
+  geom_boxplot(aes(fill = City)) +
+  labs(title = "Persebaran Harga Rumah",
+       x = "City",
+       y = "Price",
+       fill = "City : ") +
+  theme_classic() +
+  theme(axis.text.x = element_blank())
+
+ggplotly(box)
+```
+
+## Persebaran Luas Daerah di Setiap Kota
+
+```{r}
+box_1 <- 
+ggplot(data = house_clean, aes(x = City, y = Area)) +
+  geom_boxplot(aes(fill = City)) +
+  labs(title = "Persebaran Luas Rumah",
+       x = "City",
+       y = "Luas",
+       fill = "City : ") +
+  theme_classic() +
+  theme(axis.text.x = element_blank())
+
+ggplotly(box_1)
+```
+
+## Ringkasan Data
+
+```{r}
+summary(house_clean)
+```
+
+Secara umum, semua kolom prediktor bertipe factor cenderung memiliki proporsi kelas seimbang seperti `Baths`, `Fiber`, `Garage` dll, kecuali kolom `White.Marble` yang memiliki perbedaan signifikan antara ya (1) dan tidak (0).
+
+
+# Pemodelan
+
+**Pemisahan Dataset**
+
+```{r}
+set.seed(100) # merujuk pada key untuk proses CV knn
+
+index <- sample(nrow(house_clean), nrow(house_clean)*0.8)
+
+train_house <- house_clean[index, ]
+test_house <- house_clean[-index, ]
+```
+
+```{r}
+dim(train_house)
+```
+> Data latih terdiri dari 395,445 baris dengan 14 kolom.
+
+```{r}
+dim(test_house)
+```
+> Data uji terdiri dari 98,862 baris dengan 14 kolom.
+
+
+## Simple Linear Regression
+
+```{r}
+price_sm_model <- lm(formula = Prices ~ Floors, data = train_house)
+summary(price_sm_model)
+```
+
+Kita mencoba melihat performa model *Simple Linear Regression* dengan prediktor `Floors` karena merupakan prediktor yang memiliki korelasi terkuat. R-squared yang dihasilkan model ini relatif belum baik yaitu R-squared : 0.3841.
+
+
+## Prediktor Multiple Linear Regression
+
+Kita ingin mencoba menemukan prediktor mana saja yang akan memberikan ukuran model terbaik dan memenuhi asumsi regresi linear.
+
+### **Pertimbangan Pertama**, Step Wise Regression
+
+1. Model Seluruh Prediktor
+
+```{r}
+test_model <- lm(formula = Prices ~., data = train_house)
+summary(test_model)
+```
+
+2. Model dengan *Step Wise Regression*
+
+```{r}
+model_backward <- step(object = test_model,
+                       direction = "backward", 
+                       trace = F)
+
+summary(model_backward)
+```
+
+> Rekomendasi Prediktor Step Wise Regression: `Area` + `Garage` + `FirePlace` + `Baths` + `White.Marble` + `Floors` + `City` + `Solar` + `Electric` + `Fiber` + `Glass.Doors`
+
+
+### **Pertimbangan Kedua**, Kategori Korelasi
+
+- Korelasi Kuat (cor : 0.5 - 0.69): `Floors`, `Fiber`
+- Korelasi Moderat (cor : 0.30 - 0.49): `white.Marble`
+- Korelasi Lemah (cor : 0.1 - 0.29): `Glass.Doors`, `City`, `Electric`, `Baths`, `FirePlace`, `Garage`, `Area` 
+- Tidak Ada Hubungan (cor = 0) : `Garden`, `Swiming.Pool`, `Solar`
+
+Kita tidak akan menggunakan prediktor yang memiliki korelasi = 0 (tidak ada hubungan).
+
+> Rekomendasi Prediktor Berdasarkan Korelasi: `Area` + `Garage` + `FirePlace` + `Baths` + `White.Marble` + `Floors` + `City` + `Electric` + `Fiber` + `Glass.Doors`
+
+
+### **Pertimbangan Ketiga**, Memenuhi Asumsi Distribusi Normal
+
+```{r}
+test_model1 <- lm(formula = Prices ~ Area + Garage + FirePlace + Baths + White.Marble + 
+    Floors + City + Electric + Fiber + Glass.Doors, data = train_house)
+
+summary(test_model1)
+```
+
+Memang secara performa sangat baik yaitu memiliki nilai Adjused R-squared : 0.9715. Namun, model ini sulit memenuhi asumsi *Normality of Residuals* yang sangat dibutuhkan dalam model linear ini. Model linear regression diharapkan menghasilkan error yang berdistribusi normal. Dengan begitu, error lebih banyak berkumpul di sekitar angka nol.
+
+```{r}
+res <- as.data.frame(test_model1$residual)
+
+ggplot(data = res, aes(x = res$`test_model1$residual`)) +
+  geom_histogram(bins = 10, color="darkblue", fill="lightblue") + 
+  labs(
+    title = "Persebaran Residual Model",
+    subtitle = "Sebelum Penyesuaian Prediktor",
+    x =  "Residual",
+    y = "Frekuensi") +
+  scale_x_continuous(labels = scales::comma) +
+  scale_y_continuous(labels = scales::comma) +
+  theme_classic()
+```
+
+<p style="color: #000000;text-align:justify">
+Sehingga saya mencoba eksperimen beberapa kali dan menghasilkan bahwa kita mesti membuang prediktor `Area` dan `FirePlace` dan kemudian berhasil menemukan model yang memenuhi asumsi *Normality of Residuals* yang terbukti dibagian akhir nanti. Selain itu, kedua prediktor tersebut dibuang tidak terlalu masalah karena memiliki kategori korelasi lemah.
+</p>
+
+### Final Prediktor
+
+Prediktor yang dipilih berikut : `Floors`,  `Fiber`,  `White.Marble`, `City`, `Glass.Doors`, `Baths`  `Electric` `Garage`
+
+
+## Multiple Linear Regression
+
+```{r}
+wt <- 1 / lm(abs(price_sm_model$residuals) ~ price_sm_model$fitted.values)$fitted.values^2
+
+priceHo_multi_model <- lm(formula = Prices ~ Floors + Fiber + White.Marble + City + Glass.Doors + Baths + Electric + Garage, data = train_house, weights = wt)
+
+summary(priceHo_multi_model)
+```
+
+
+Intrepretasi Model :
+
+- Harga suatu rumah yang terletak di `City1`, dengan satu `Kamar Mandi` dan memiliki sebuah `Garasi` adalah 14,492.44 (Berdasarkan nilai `Intercept` = 14,492.44).
+- Cenderung terjadi peningkatan sebesar 14,992.031 apabila rumah menggunakan `lantai Keramik` (Berdasarkan nilai `Floors1` = 14,992.031).
+- Cenderung terjadi peningkatan sebesar 11,760.315 apabila rumah menggunakan `Fiber` (Berdasarkan nilai `Fiber1` = 11,760.315).
+- Cenderung terjadi peningkatan sebesar 11,514.184 apabila rumah menggunakan `White Marble` (Berdasarkan nilai `White.Marble1` = 11,514.184).
+- Cenderung terjadi peningkatan sebesar 3,495.719 apabila rumah terletak di `City2` (Berdasarkan nilai `City2` = 3.495.719).
+- Cenderung terjadi peningkatan sebesar 6,979.263 apabila rumah terletak di `City3` (Berdasarkan nilai `City3` = 6,979.263).
+- Cenderung terjadi peningkatan sebesar 4,452.961 apabila rumah menggunakan `Glass Door` (Berdasarkan nilai `Glass.Doors1` = 4452.961).
+- Cenderung terjadi peningkatan sebesar 1273.207 apabila rumah memiliki 2 buah Kamar Mandi (Berdasarkan nilai `Baths2` = 1273.207).
+- Cenderung terjadi peningkatan sebesar 2497.610 apabila rumah memiliki 3 buah Kamar Mandi (Berdasarkan nilai `Baths3` = 2497.610).
+- Cenderung terjadi peningkatan sebesar 3739.281 apabila rumah memiliki 4 buah Kamar Mandi (Berdasarkan nilai `Baths4` = 3739.281).
+- Cenderung terjadi peningkatan sebesar 5001.354 apabila rumah memiliki 5 buah Kamar Mandi (Berdasarkan nilai `Baths2` = 5001.354).
+- Cenderung terjadi peningkatan sebesar 1251.169 apabila rumah menggunakan `listrik` (Berdasarkan nilai `Electric1` = 1251.169).
+- Cenderung terjadi peningkatan sebesar 1504.119 apabila rumah memiliki 2 buah `Garasi` (Berdasarkan nilai `Garage2` = 1504.119).
+- Cenderung terjadi peningkatan sebesar 3008.204 apabila rumah memiliki 3 buah `Garasi` (Berdasarkan nilai `Garage3` = 3008.204).
+
+Model yang kita hasilkan sudah sangat baik. Hal ini terlihat pada semua prediktor yang digunakan memiliki 3 bintang (`***`) berarti predikornya signifikan.
+
+
+# Prediksi
+
+Kita memprediksi menggunakan data test yang sudah kita pisahkan pada bagian awal modeling.
+
+```{r}
+test_house$y_pred <- predict(object = priceHo_multi_model, newdata = test_house)
+```
+
+```{r}
+test_house
+```
+
+Kita melihat hasil prediksi model ini cukup beragam, terdapat data yang diprediksi mendekati nilai asli dan juga terdapat data yang diprediksi kurang mendekati nilai asli.
+
+
+# Evaluasi Model
+
+## R.Squared
+
+```{r}
+summary(priceHo_multi_model)$adj.r.squared
+```
+
+> Kesimpulannya, model `priceHo_multi_model` memiliki goodness of fit alias Adjusted R-squared yang sangat baik yaitu 0.9417953 (mendekati 1).
+
+## Error
+
+```{r}
+RMSE(y_pred = test_house$y_pred, y_true = test_house$Prices)
+```
+Interpretasi RMSE: akan terjadi error secara rata-rata sebesar 2914.388 pada setiap poin (titik data) prediksi.
+
+
+Dalam mengetahui apakah RMSE sudah cukup kecil, biasa kita bandingkan dengan range variable targetnya :
+
+```{r}
+range(test_house$Prices)
+```
+
+> Dapat disimpulkan error model kita cukup kecil karena rentang data kita cukup besar yaitu (69.250). 
+
+
+# Asumsi
+
+## 1. Normality of Residuals
+
+### A. Secara Grafik
+
+
+```{r}
+residual <- as.data.frame(priceHo_multi_model$residual)
+
+ggplot(data = residual, aes(x = residual$`priceHo_multi_model$residual`)) +
+  geom_histogram(bins = 10, color="darkblue", fill="lightblue") + 
+  labs(
+    title = "Persebaran Residual Model",
+    subtitle = "Setelah Penyesuaian Prediktor",
+    x =  "Residual",
+    y = "Frekuensi") +
+  scale_x_continuous(labels = scales::comma) +
+  scale_y_continuous(labels = scales::comma) +
+  theme_classic()
+```
+
+> Terlihat secara grafik relatif error kita berdistribusi normal karena error memusat disekitar 0.
+
+### B. Dengan Kolmogorov-Smirnov Test
+
+Uji statistik dengan `ks.test()`
+
++ alpha = 0.05
++ Kolmogorov-Smirnov hypothesis test:
+
+  - H0: error berdistribusi normal (p-value > alpha)
+  - H1: error TIDAK berdistribusi normal (p-value < alpha)
+
+```{r}
+set.seed(100)
+normal_data <-  rnorm(priceHo_multi_model$residuals)
+
+ks.test(normal_data, "pnorm")
+```
+
+> Kesimpulannya gagal tolak H0 karena `p-value > alpha (0.3181 > 0.05)` artinya error berdistribusi normal, asumsi terpenuhi.
+
+
+## 2. Homoscedasticity of Residuals
+
+### A. Secara Grafik
+
+```{r}
+# PErsiapan Dats
+set.seed(100)
+scatter <- data.frame(X = priceHo_multi_model$fitted.values,
+                      Y = priceHo_multi_model$residuals)
+nrow(scatter)
+
+# Sampel
+index <- sample(nrow(scatter), nrow(scatter)*0.01)
+scatter <- scatter[index,]
+nrow(scatter)
+```
+
+Kita mencoba melihat gambaran penyebaran `fitted.values` dan `residuals`. Tetapi kita hanya menggunakan 1% dari keseluruhan agar mempermudah melihat gambaran penyebarannya.
+
+- `fitted.values` adalah nilai hasil prediksi data training
+- `residuals` adalah nilai error (selisih aktual dengan prediksi)
+
+```{r}
+# Visualisasi
+ggplot(data = scatter, aes(x = X, y = Y)) +
+  geom_point() +
+  labs(
+    title = "Penyebaran Fitted Values vs Residuals",
+    subtitle = "Model Multi Linear Regression",
+    x =  "Fitted Values",
+    y = "Residuals") +
+  scale_x_continuous(labels = scales::comma) +
+  scale_y_continuous(labels = scales::comma) +
+  theme_classic()
+```
+
+> Terlihat secara grafik relatif error yang dihasilkan menyebar secara acak (tidak berpola) dalam proses pelatihan model.
+
+
+### B. Dengan Breusch-Pagan Test
+
+Uji statistik dengan `bptest()`
+
++ alpha : 0.05
+
++ Breusch-Pagan hypothesis test:
+
+  - H0: error menyebar konstan atau homoscedasticity (p-value > alpha)
+  - H1: error menyebar TIDAK konstan atau heteroscedasticity  (p-value < alpha)
+
+```{r}
+bptest(priceHo_multi_model)
+```
+
+> Kesimpulannya gagal tolak H0 karena `p-value > alpha (1 > 0.05)` artinya error kita menyebar secara acak / tidak berpola (homoscedasticity of residuals), asumsi terpenuhi.
+
+
+## 3. No Multicolinearity
+
+<p style="color: #000000;text-align:justify">
+Multicollinearity adalah kondisi adanya korelasi antar prediktor yang kuat. Hal ini tidak diinginkan karena menandakan prediktor redundan pada model, yang seharusnya dapat dipilih salah satu saja dari variable yang hubungannya amat kuat tersebut. Harapannya tidak terjadi multicollinearity. Kita menggunakan uji VIF (Variance Inflation Factor) untuk menguji asumsi No Multicolinearity.
+</p>
+
+Uji VIF dengan fungsi `vif()` 
+
++ Variance Inflation Factor hypothesis test:
+
+  - nilai VIF atau > 10: terjadi multicollinearity pada model 
+  - nilai VIF < 10: tidak terjadi multicollinearity pada model
+
+```{r}
+vif(priceHo_multi_model)
+```
+
+Berhubung kolom prediktor berjenis factor sehingga kita mengunakan nilai **GVIF^(1/2*Df)** di atas untuk mengantikan nilai VIF yang memang tidak muncul. 
+
+> Kesimpulannya model kita No Multicollinearity karena setiap predktor memiliki nilai `GVIF^(1/2*Df)` kurang dari 10, asumsi terpenuhi.
+
+
+# Kesimpulan
+
+<p style="color: #000000;text-align:justify">
+Kita telah melalui berbagai proses dari menyiapkan data hingga membuktikan beberapa asumsi dalam regresi linear. Secara keseluruhan kita telah berhasil membangun sebuah model yang dapat digunakan untuk memprediksi harga suatu rumah berdasarkan 9 prediktor yang baik. Model kita juga telah dievaluasi kemudian menghasilkan nilai adj.R-Squared yang sangat tinggi dan nilai error yang relatif kecil dibandingkan rentang harga. Model kita juga telah berhasil memenuhi 4 asumsi (satu sebelum pembangunan model dan tiga setelah pembangunan model). Harapannya melalui projek ini dapat menjadi referensi dalam membangun model untuk memprediksi harga suatu rumah. Sekian terima kasih banyak yang telah melihat projek ini. Saya juga menyukai masukan dan kolaborasi sehingga apabila ada masukan, saran atau untuk berkolaborasi dapat menghubungi lewat [Linkedin](https://www.linkedin.com/in/toni-andreas-s).
+</p>
+
