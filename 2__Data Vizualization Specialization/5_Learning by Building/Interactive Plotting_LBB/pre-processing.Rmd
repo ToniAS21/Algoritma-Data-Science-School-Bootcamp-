@@ -1,0 +1,138 @@
+---
+title: "Pre-Processing"
+author: "Toni Andreas Susanto"
+date: "8/4/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Library
+
+```{r}
+library(lubridate)
+library(dplyr)
+library(plotly)
+library(treemapify)
+library(ggplot2)
+library(tidyr)
+library(scales)
+library(glue)
+library(stringr)
+library(highcharter) 
+```
+
+# Read Data 1
+
+```{r}
+# Data 1
+companies <- read.csv("data_input/sp500_companies.csv")
+```
+
+# Wrangling data
+
+## sortil data perusahaan khusus index dow jones
+```{r}
+dow_companies <- 
+companies %>% 
+  filter(Symbol %in%
+c('AXP','AAPL',"AMGN",'BA','CAT','CSCO','CVX',
+  'GS','HD','IBM','INTC','JNJ','KO',
+  'JPM','MCD','MMM','MRK','MSFT','NKE',
+  'PG','TRV','UNH','VZ','WBA',
+  'WMT','DIS', "DOW", "HON", "CRM"))
+```
+
+# Mengisi missing value untuk kolom yang diperlukan saja dengan mencari dari internet  
+
+```{r}
+dow_companies[30,1] <- "NYQ"
+dow_companies[30,2] <-  "V"
+dow_companies[30,3] <- "Visa, Inc."
+dow_companies[30,4] <- "Visa, Inc."
+dow_companies[30,5] <- "Financial Services"
+dow_companies[30,6] <- "Credit Services"
+dow_companies[30,7] <- 210.47
+dow_companies[30,8] <- 445210000000
+dow_companies[30,9] <- 18878000000
+dow_companies[30,10] <- NA
+dow_companies[30,11] <- "San Fransisco"
+dow_companies[30,12] <- "CA"
+dow_companies[30,13] <- "United States"
+dow_companies[30,14] <- 21500
+dow_companies[30,15] <- "Visa Inc. is an American multinational financial services corporation headquartered in Foster City, California, United States. It facilitates electronic funds transfers throughout the world, most commonly through Visa-branded credit cards, debit cards and prepaid cards."
+dow_companies[30,16] <- NA
+dow_companies[25,9] <- 119000000
+```
+
+# Save RDS dow_company
+```{r}
+#saveRDS(dow_companies, "data_input_clean/dow_companies.rds")
+```
+
+# Read Data 2
+
+```{r}
+# Data 2
+stock <- read.csv("data_input/sp500_stocks.csv")
+```
+
+# data wrangling
+
+## Sortil data saham khusus index dow jones
+
+```{r}
+dow_stock <- 
+stock %>% 
+  filter(Symbol %in% 
+c('AXP','AAPL',"AMGN",'BA','CAT','CSCO','CVX',
+  'GS','HD','IBM','INTC','JNJ','KO',
+  'JPM','MCD','MMM','MRK','MSFT','NKE',
+  'PG','TRV','UNH','VZ','V','WBA',
+  'WMT','DIS', "DOW", "HON", "CRM"))
+```
+
+## mengubah tipe data
+
+```{r}
+dow_stock$Date <- ymd(dow_stock$Date)
+dow_stock$year <- year(dow_stock$Date)
+```
+
+## filter data
+
+```{r}
+dow_stock18 <- 
+dow_stock %>% 
+  filter(Date >= "2017-12-10")
+```
+
+## Isi missing value
+
+```{r}
+cl_dow_stock18 <- 
+dow_stock18  %>% fill(c(Adj.Close, Close, High, Low, Open, Volume), .direction = 'up')
+```
+
+
+```{r}
+cl_dow_stock18 %>% is.na() %>% colSums()
+```
+
+
+## mengubah tipe data + clear data 
+
+```{r}
+cl_dow_stock18 <- 
+cl_dow_stock18 %>% 
+  mutate(year = year %>% as.factor(),
+         Symbol =  Symbol %>%  as.factor()
+  )
+```
+
+# Save RDS cl_dow_stock18
+```{r}
+#saveRDS(cl_dow_stock18, "data_input_clean/cl_dow_stock18.rds")
+```
