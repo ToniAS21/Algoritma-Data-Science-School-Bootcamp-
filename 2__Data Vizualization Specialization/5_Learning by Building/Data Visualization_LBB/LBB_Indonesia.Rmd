@@ -1,0 +1,792 @@
+---
+title: "Supermarket Analysis"
+author: "Toni Andreas Susanto"
+date: "7/19/2022"
+output:
+  rmdformats::readthedown:
+    df_print: paged
+    highlight: tango
+---
+
+<center>
+![FigName](asset/Supermarket Analysis.png)
+</center>
+    
+
+```{r setup, include=FALSE}
+# clear-up the environment
+rm(list = ls())
+
+# chunk options
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  comment = "#>"
+)
+
+options(scipen = 9999)
+```
+
+**Contact :**
+
+<script src="https://kit.fontawesome.com/9427ff0559.js" crossorigin="anonymous"></script>
+<a href="https://www.linkedin.com/in/toni-andreas-s"><i class="fa fa-linkedin icon-green" style="font-size:30px;color:#0077b5" title="Find me on Linkedin" ></i>
+**linkedin**</a>&nbsp;&nbsp;
+<a href="https://api.whatsapp.com/send?phone=6281345771101"><i class="fa fa-whatsapp" style="font-size:30px;color:#128C7E" title="Find me on WhatsApp"></i>
+**WhatsApp**</a>
+
+# Pendahuluan {.tabset}
+
+<p style="color: #000000;text-align:justify">
+Pada umumnya kita semua sudah pernah berkunjung ke supermarket, entah untuk membeli kebutuhan, jalan-jalan dan lain sebagainya. Supermarket adalah sebuah toko yang menjual berbagai macam kebutuhan barang. Kata supermarket, berasal dari bahasa Inggris yang secara harfiah berarti **pasar yang besar**.  Oleh karena supermarket biasanya menjual berbagai macam barang cenderung kita memerlukan alat khusus seperti bahasa pemrograman **R** agar dapat menganalis data yang kompleks secara efektif dan efisien. Harapannya dengan menganalisis secara efektif dan efisien kita dapat memperoleh **insight** yang bermanfaat dalam mengambil keputusan secara tepat efisien.
+</p>
+
+## **Latar Belakang**
+
+<p style="color: #000000;text-align:justify">
+Kita menyadari di era teknologi saat ini, kita mesti memiliki nilai tambah seperti kemampuan dalam pengolahan data secara efektif dan efisien. Melalui kesadaran tersebut dan
+ketertarikan saya dalam mempelajari berbagai hal baru seperti bahasa pemrograman **R** maka saya mencoba membuat project ini. Selain itu, Project ini disusun sebagai bentuk latihan saya setelah mempelajari keterampilan coding.  
+</p>
+
+## **Tujuan**
+
+1. Project ini bertujuan untuk meningkatkan pemahaman dan keterampilan penulis dalam menggunakan bahasa pemrograman **R**. 
+
+2. Kemudian Project ini bertujuan menjadi sarana penulis dalam membangun portofolio yang sangat dibutuhkan dalam dunia profesional.
+
+3. Selain itu, saya berharap dapat meningkatkan pengetahuan dan pemahaman setiap pembaca secara luas.
+
+
+## **Pertanyaan Bisnis**
+
+<p style="color: #000000;text-align:justify">
+Pertumbuhan supermarket di kota-kota besar meningkat setiap tahunnya dan kompetisi pasar juga tinggi. Kita sebagai tim data diminta untuk **menganalisa performa supermarket** dan **Memberikan rekomendasi** bagi supermarket kita. Data yang akan kita gunakan berisi transaksi selama periode Januari - Maret 2019.
+</p>
+
+## **Pengenalan Data**
+
+<p style="color: #000000;text-align:justify">
+Pada kesempatan ini saya mencoba menganalisis data tentang supermarket yang disediakan di platfom
+[kaggle berikut](https://www.kaggle.com/aungpyaeap/supermarket-sales), data ini terdiri dari 1000 baris dan 17 kolom. Melalui data tersebut saya berusaha untuk melakukan persiapan dan wrangling data kemudian melakukan eksplorasi dan analisis data serta mengambil kesimpulan.
+</p>
+<p style="color: #000000;text-align:justify">
+Data kita berasal dari 3 kota di negara Myanmar. Kita dapat melihat letak kota ini pada peta berikut. Selain itu, ketika menekan icon kota ini maka kita dapat melihat gambar iconic setiap kota.
+</p>
+
+```{r}
+library(leaflet)
+
+# get icon
+ico <- makeIcon(
+    iconUrl = "http://1.bp.blogspot.com/-gR-c6n8olqM/UBnRAyS_m-I/AAAAAAAAAQ8/nmOtsS54nUo/s1600/gambar-bendera-myanmar.JPG",
+    iconWidth=750/40, iconHeight=499/40)
+
+Latitude = c(17.02460428627904, 19.766060069490056, 21.954434407595635)
+Longitude = c(96.22689582916921, 96.08171350599085, 96.08600825781728)
+
+pts <- data.frame(Latitude, Longitude)
+
+file <- "https://www.abouttimemagazine.co.uk/wp-content/uploads/2016/05/Shwedagon.jpg"
+file1 <- "https://www.remotelands.com/remotenew1/dist/images/country/myanmar/city/20061701/b200617001.jpg"
+file2 <- "https://1.bp.blogspot.com/-Wx6ZIQMlaIA/WRMT5q1V2mI/AAAAAAAADKA/s545x4vTB_ECUS0zyins68dYSx_g9UbUACLcB/s1600/Mandalay.jpg"
+
+leaflet() %>%
+  addTiles %>%
+  addMarkers(data = pts, lng =~Longitude, lat =~Latitude, icon=ico,
+                   popup = c(paste0("Yangon City","<img src = ", file, ">"),
+                             paste0("Naypyitaw City","<img src = ", file1, ">"),
+                             paste0("Mandalay City","<img src = ", file2, ">")))
+```
+
+
+# Persiapan dan Wrangling Data
+
+## Library
+
+```{r}
+# ====================== Wrangling Data ==========================
+library(lubridate)
+library(tidyr)
+
+# ====================== Mengatur Scala Visualisasi ===================
+library(scales)
+
+# ====================== Membuat visualisasi ==========================
+library(glue) # setting tooltip
+library(ggplot2)
+library(hrbrthemes)
+library(plotly)
+```
+
+<br>
+
+## Persiapan Dataset
+
+```{r}
+supermarket <- read.csv("data_input/supermarket.csv") # Membaca dataset
+head(supermarket, 5) # Menampilkan 5 teratas
+```
+Deskripsi kolom:
+
+* `Invoice_ID`: slip invoice id
+* `Branch`: branch supermarket (A, B, C)
+* `City`: lokasi supermarket
+* `Customer_type`: tipe pelanggan (Member/Normal)
+* `Gender`: gender pelanggan
+* `Product_line`: kategorisasi produk (Electronic accessories, Fashion accessories, Food and beverages, Health and beauty, Home and lifestyle, Sports and travel)
+* `Unit_price`: harga produk dalam dollar
+* `Quantity`: jumlah produk yang dibeli pelanggan
+* `Tax_5.`: harga pajak untuk pembelian produk
+* `Total`: harga total termasuk pajak
+* `Date`: tanggal pembelian
+* `Time`: jam pembelian
+* `Payment`: mode pembayaran (Cash, Credit card, Ewallet)
+* `cogs`: harga pokok penjualan (cost of goods sold) 
+* `gross_margin_percentage`: persentase margin penjualan
+* `gross_income`: gross_income dari penjualan produk
+* `Rating`: rating pengalaman berbelanja pelanggan (1-10)
+
+<br>
+
+## Data Wrangling
+
+### Mengecek Missing Value
+
+```{r}
+anyNA(supermarket)
+```
+Kita mengecek dataset kita dan menunjukan tidak memiliki data yang terduplikasi sehingga siap digunakan ke proses selanjutnya.
+
+<br>
+
+### Mengecek Duplikasi Data
+
+```{r}
+anyDuplicated(supermarket)
+```
+
+Kita mengecek ternyata dataset ini tidak memiliki data yang terduplikasi sehingga siap digunakan ke proses selanjutnya.
+
+<br>
+
+### Menghapus Kolom `Tax_5.`
+
+```{r}
+data.frame(supermarket$Tax_5., supermarket$gross_income)[1:7,]
+```
+Kita akan menghapus kolom `Tax.5.` karena saya menduga terdapat kekeliruan pada kolom `Tax_5.`, kolom ini  memiliki nilai serupa dengan `supermarket_gross_income` sehingga saya merasa lebih baik menghapus kolom `Tax_5.`.
+
+```{r}
+supermarket$Tax_5. <- NULL
+head(supermarket)
+```
+
+<br>
+
+### Menyesuaikan Tipe Dataset {.tabset}
+
+```{r}
+str(supermarket)
+```
+#### Tipe Factor 
+
+**Pertama**, kita akan mengubah beberapa tipe data kolom `Branch`, `City`, `Customer_type`, `Gender`, `Product_line`, `Payment` menjadi tipe data *factor*, tipe ini diperuntukan untuk data seperti kategorical. Hal ini disebabkan kolom tersebut memiliki nilai berulang dan  bertujuan untuk menghemat memory yang akan digunakan karena R tidak menganggap setiap nilai berulang tersebut sebagai nilai unik. Selain itu, dengan kita mengubah data menjadi *factor* dapat memudahkan kita dalam melakukan perhitungan statistik dan lain-lain.
+
+
+Mengecek keunikan nilai dari beberapa kolom dengan menggunakan fungsi `laaply()` agar pengecekan nilai unique tidak dilakukan secara satu-satu.
+
+```{r}
+lapply(X = supermarket[, c("Branch", "City", 
+                       "Customer_type", "Gender", 
+                       "Product_line", "Payment")],
+       FUN = unique)
+```
+
+Proses mengubah menjadi jenis factor.
+
+```{r}
+
+supermarket[, c("Branch", "City", "Customer_type", 
+                "Gender", "Product_line", "Payment")] <- # menyimpan hasil perubahan tipe data
+lapply(X = supermarket[, c("Branch", "City", "Customer_type",
+                           "Gender", "Product_line", "Payment")],
+       FUN = as.factor) # Mengubah tipe data sekaligus dengan fungsi lapply()
+```
+
+#### Tipe Waktu
+
+**Kedua**, kita akan mengubah kolom `Date` dan `Time` menjadi tipe data . Hal ini ertujuan agar mempermudah kita dalam menganalisis transaksi berdasarkan waktu. Kita akan mengubah dengan bantuan library [lubridate](https://www.rdocumentation.org/packages/lubridate/versions/1.8.0).
+
+
+```{r echo=FALSE}
+head(supermarket,3)
+```
+
+Kita mengetahui kolom `Date` memiliki susunan MM/DD/YYYY atau bulan-hari-tahun sehingga nantinya akan menggunakan fungsi `mdy()` dan kolom `Time` memiliki susunan hh:mm atau jam-menit sehingga nantinya akan menggunakan fungsi `hms::parse_hm()` dari library `lubridate`. 
+
+
+```{r}
+supermarket$Date <- mdy(supermarket$Date)
+supermarket$Time <- hms::parse_hm(supermarket$Time)
+```
+
+Melihat struktur data dengan `str()`
+
+```{r}
+str(supermarket)
+```
+- Dataset kita memiliki 1000 observasi (baris) dan 16 variables (kolom).
+
+- Kolom-kolom dataset kita sudah memiliki tipe data yang sesuai :
+  
+  - Kolom yang memiliki nilai unik menggunakan `character`.
+  - Kolom yang memiliki nilai berulang menggunakan `factor` seperrti (`City`, `Customer_type` dll). 
+  - Kolom yang berkaitan angka menggunakan `number` seperti (`Unit_Price`, `Total` dll).
+  - Kolom yang berkaitan tanggal menggunakan `Date` seperti (`Date` dll).
+  
+<br>
+
+# Eksplorasi dan Analisis Data
+
+## Ringkasan Data
+
+```{r}
+summary(supermarket)
+```
+#### 🔎 Summary
+
+1. Kita memiliki 1000 transaksi dari `01-Jan-2019` hingga `30-Mar-2019`.
+
+2. Transaksi dominan terjadi di `Branch` A (340 transaksi alias 34% dari keseluruhan).
+
+3. Transaksi tertinggi terdapat pada `Product_line` *Fashion accessories* (178 transaksi alias 17.8% dari keseluruhan) dan terendah pada jenis *Health and beauty* (152 transaksi alias 15.2%).
+
+4. Transaksi yang terjadi secara keseluruhan memiliki rentang `harga` dari 10.08 - 99.96 dengan rata-rata sebesar 55.67 (dalam dolar).
+
+5. Jumlah pembelian barang (`Quantity`) di supermarket ini memiliki rentang dari 1 - 10 unit dengan rata-rata 5.51 (dibulatin menjadi 6 unit).
+
+6. Total pembelian (`Total`) konsumen per transaksi berada dikisaran 10.68 - 1,042.65 dengan median sebesar 253.85 (dalam dolar).
+
+7. Harga pokok penjualan (`cogs`) per transaksi berada dikisaran 10.17 - 993 dan median sebesar 241.76 (dalam dolar).
+
+8. pendapatan kotor (`gross_income`) per transaksi berada dikisaran 0.5085 - 49.65 dengan median sebesar 12.088 (dalam dolar) serta persentase margin pendapatan kotor yang diambil perusahaan adalah konstan di angka 4.762%.
+
+9. `Rating` dari 1000 transaksi kita sudah lumayan baik yaitu 75%-nya diangka lebih dari atau sama dengan 5.5 (berdasarkan Kuartil pertama diangka 5.5) dan nilai tengahnya (median) diangka 7 dari 10 artinya 50 % dari data kita memiliki rating lebih dari atau sama 7.
+
+<br>
+
+## Persebaran Harga
+
+```{r}
+box <- 
+ggplot(data = supermarket, aes(x = Product_line, y = Unit_price)) +
+  geom_boxplot(aes(fill = Product_line)) +
+  theme(axis.text.x = element_blank()) +
+  labs(title = "Persebaran Harga pada Setiap Prdouct Line",
+       x = "Product Line",
+       y = "Price",
+       fill = "Product Line : ") +
+  theme_dark() +
+  theme(axis.text.x = element_blank())
+  
+ggplotly(box)
+```
+#### 💡 Insight
+
+Harga dari setiap`Product Line` yang dibeli konsumen memiliki kisaran 10 hingga kurang lebih 99 (dalam dolar).
+  
+🔴**️Electronic Accesories**
+
+75% dari konsumen *Electronic Accesories* membeli diharga kisaran 27.85 hingga 75.91 (dalam dolar).
+     
+🔴**Fashion Accesories**
+
+75% dari konsumen *Fashion Accesories* membeli diharga kisaran 35.19 hingga 81.31 (dalam dolar).
+    
+🔴**Food and Beverages**
+
+75% dari konsumen *Food and Beverages* membeli diharga kisaran 33.33 hingga 78.88 (dalam dolar).
+    
+🔴**Health and Beauty**
+
+75% dari konsumen  *Health and Beauty* membeli diharga kisaran 32.39 hingga 76.39 (dalam dolar).
+  
+🔴**Home and Lifestyle**
+
+75% dari konsumen *Home and Lifestyle* membeli diharga kisaran 34.20 hingga 77.58 (dalam dolar).
+  
+🔴**Sport and Travel**
+
+75% dari konsumen *Sport and Travel* membeli diharga kisaran 34.37 hingga 80.93 (dalam dolar).
+  
+  
+#### 🚀 Rekomendasi 
+
+Sebaiknya ketika ingin menawarkan produk baru atau meningkatkan kuantitas penjualan supermarket kita dapat mempertimbangkan rentang harga dominan yang dibeli konsumen di masing-masing produk line.
+
+<br>
+
+
+## Persebaran Gender 
+
+```{r}
+# Persiapan data
+
+gdr_produk <- 
+as.data.frame(table(supermarket$Product_line, supermarket$Gender))
+
+akm_t <- aggregate(Freq ~ Var1, data = gdr_produk, FUN = sum)
+
+# Visualisasi
+
+bar <- 
+ggplot(data = gdr_produk, aes(x = Freq, 
+                              y = reorder(Var1, Freq),
+                              text = paste("Nilai", round(x = (Freq/akm_t$Freq)*100, digits = 2), "%"))) +
+  geom_col(aes(fill = Var2), position = "fill") +
+  scale_fill_brewer(palette = "Set2") +
+   labs(title = "Perbandingan Gender Disetiap Product Line",
+        x = "Proporsi",
+        y = NULL,
+        fill = "Gender :")
+
+ggplotly(bar, tooltip = "text")
+```
+#### 💡 Insight
+
+- Transaksi pada product line `Electornic Accessories` dam `Home and Lifestyle` cenderung memiliki proporsi gender cukup seimbang.
+
+- Transaksi pada product line `Fashion Accessories`, `Food and Beverages` dan `Sport and Travel` cenderung didominasi oleh gender *Female*.
+
+- Transaksi pada product line `Health and Beauty` cenderung didominasi oleh gender *Male*.
+
+#### 📃 Esensi
+
+Pada setiap product line memiliki persebaran beragam, ada proporsi gender seimbang, lebih dominan *Female* dan lebih dominan *Male*
+
+<br>
+
+## Persebaran Tipe Konsumen
+
+```{r}
+# Persiapan data
+pd_cc <- 
+as.data.frame(table(supermarket$Product_line, supermarket$Customer_type))
+
+akm_t <- aggregate(Freq ~ Var1, data = pd_cc, FUN = sum)
+
+# Visualisasi
+bar1 <- 
+ggplot(data = pd_cc, aes(x = Freq, 
+                         y = reorder(Var1, Freq),
+                         text = paste("Nilai", round(x = (Freq/akm_t$Freq)*100, digits = 2), "%"))) +
+  geom_col(aes(fill = Var2), position = "fill") +
+  scale_fill_brewer(palette = "Set1") +
+  labs(title = "Perbandingan Tipe Konsumen Disetiap Product Line",
+        x = "Proporsi",
+        y = NULL,
+        fill = "Tipe Konsumen :") 
+
+ggplotly(bar1, tooltip = "text")
+```
+
+#### 💡 Insight
+
+<p style="color: #000000;text-align:justify">
+ Pada produk line `Fashion Accessories`, `Electornic Accessories`, dan `Health and Beauty` cenderung transaksi didominasi oleh konsumen bertipe Normal.
+</p>
+
+<p style="color: #000000;text-align:justify">
+Pada produk line `Food and Beverages`, `Sport and Travel`, dan `Home and Lifestyle` cenderung transaksi didominasi oleh konsumen bertipe Member.
+</p>
+
+#### 🚀 Rekomendasi 
+
+- Sebaiknya kita perlu mendorong konsumen bertipe Normal agar menjadi Member pada pembelian di produk line `Fashion Accessories`, `Electornic Accessories`, dan `Health and Beauty`. 
+
+- Selain itu, kita juga tetap mendorong di ketiga produk line lainnya untuk terus meningkatkan proporsi konsumen yang
+bertipe Member. 
+
+- - Harapannya dengan meningkatkan proporsi konsumen bertipe Member akan meningkatkan rasa loyalitas dan lebih mudah dalam mempromosikan produk-produk baru dan lain sebagainya. Hal ini dapat dilakukan dengan memberikan benefit yang menarik bagi konsumen bertipe Member dsb.
+
+<br>
+
+
+## Persebaran Jumlah Transaksi Per Jam
+
+```{r}
+# Membuat kolom hour (Feature Engineering)
+supermarket$hour <- hour(supermarket$Time)
+
+# Persiapan data
+tran_hour <- 
+aggregate(Invoice_ID ~ hour + Product_line,
+          data = supermarket,
+          FUN = length)
+
+# Visualisasi
+p <- 
+ggplot(tran_hour, aes(x = hour, 
+                      y = Product_line, 
+                      text =glue(
+                              "Product Line : {Product_line}
+                              Jam : {hour}
+                              Jumlah Transaksi : {Invoice_ID}
+                              "))) +
+  geom_tile(aes(fill = Invoice_ID)) +
+  labs(title = "Persebaran Jumlah Transaksi dari setiap Product line",
+       x = "Jam",
+       y = NULL,
+       fill = "Rentang") +
+  scale_fill_gradient(low="red", high="black") +
+  scale_x_continuous(breaks = seq(0,24,1))
+
+# Plot Interaktif
+ggplotly(p, tooltip="text")
+```
+#### 💡 Insight
+
+- Jumlah transaksi tertinggi berada pada jam 19 di Product line `Food and Beverages` yaitu 26 transaksi dan transaksi terendah pada jam 20 di product line `Sport and travel` yaitu 4 transaksi.
+
+- Pada `Sports and Travel` jumlah transaksi banyak terjadi di jam 13, 16 dan 19.
+
+- Pada `Home and Lifestylle` jumlah transaksi banyak terjadi di jam 11, 13 dan 15.
+
+- Pada `Health and Beauty` jumlah transaksi banyak terjadi di jam 10, 13 dan 14.
+
+- Pada `Food and Beverages` jumlah transaksi banyak terjadi di jam 10, 15, 19 dan 20.
+
+- Pada `Fashion Accessories` jumlah transaksi banyak terjadi di jam 12, 13, 18 dan 19.
+
+- Pada `Electronic Accessories` jumlah transaksi banyak terjadi di jam 10, 11 dan 18.
+
+
+#### 🚀 Rekomendasi
+
+- Dengan mengetahui jam-jam dominan terjadi transaksi, kita dapat mengoptimalkan Total penjualan melalui usaha meningkatkan kuantitas barang terjual di jam-jam dominan tersebut dengan memberikan promosi dan sebagainya.
+
+- Kita juga dapat memberikan promo-promo menarik khusus di jam-jam yang kurang terjadi transaksi sehingga meningkatkan jumlah transaksi di jam tersebut.
+
+<br>
+
+
+## Product Line yang Dominan dan Minim 
+
+```{r}
+# Membuat dataframe berkaitan kolom Product_line dan Branch
+vs <- as.data.frame(table(supermarket$Product_line, supermarket$Branch))
+
+# Membuat visualisasi
+ggplot(data = vs, mapping = aes(x = Var2, y = Freq)) +
+  geom_col(aes(fill = Var1), position = "dodge") +
+  geom_label(aes(label = Freq, group=Var1),
+             position = position_dodge(width = 0.9),
+             vjust = 1.2) +
+  labs(title = "Jumlah Transaksi Berdasarkan Product Line di Setiap Cabang",
+       subtitle = "Akumulasi Transaksi dari Jan - Mar 2019",
+       x = "Branch",
+       y = "Jumlah Transaksi",
+       fill = "Product Line"
+  ) +
+   theme(plot.title.position = "plot")
+
+```
+
+#### 💡 Insight
+
+- Cenderung produk line `Health and Beauty` memiliki jumlah transaksi selalu 3 terbawah di masing-masing cabang.
+
+- Pada cabang A cenderung transaksi didominasi produk line `Home and Lifestyle`
+
+- Pada cabang B cenderung transaksi didominasi produk line `Fashion Accessories` dan `Sporth and Travel`
+
+- Pada cabang C cenderung transaksi didominasi produk line `Food and Beverages` dan `Fashion Accessories`
+
+#### 🚀 Rekomendasi 
+
+- Sebaiknya kita perlu mencari lebih lanjut penyebab produk line `Health and Beauty` memiliki jumlah transaksi sedikit dengan i melihat apakah tim marketing sudah menjalankan tugasnya secara tepat atau masalahnya pada minat konsumen yang sedikit atau lainnya. Apabila masalah pada tim marketing maka dapat perbaiki seperti meningkatkan efektivitas promosi dsb dan apabila masalah pada minat konsumen yang kurang maka dapat dengan memberikan edukasi sehingga ia berminat membeli produk line `Health and Beauty`. 
+
+- Berhubung antar cabang memiliki produk line dominan yang berbeda, maka setiap pimpinan cabang dapat saling berkolaborasi agar meningkatkan penjualan secara keseluruhan disetiap cabang.
+<br>
+
+## Penjualan Setiap Product Line 
+
+```{r}
+# Menyiapkan data
+tl_agg <- aggregate(Total ~ Product_line, data = supermarket, FUN = sum)
+
+# Memvisualisasikan data 
+ggplot(data = tl_agg, aes(x = Total, y = reorder(Product_line, Total))) +
+         geom_col(aes(fill = Total), show.legend = FALSE) +
+         scale_fill_continuous(low = "red", high = "black") +
+         geom_label(aes(label=Total), hjust = 0.8) +
+         labs(title = "Total Penjualan dari Setiap Product Line dari Keseluruhan Supermarket",
+              subtitle = "Akumulasi dari Jan - Mar 2019",
+              y = NULL,
+              x = "Nilai Total Penjualan") +
+         scale_x_continuous(labels = scales::comma) +
+         theme(plot.title.position = "plot") +
+  theme(panel.background = element_rect(fill = '#F5F5F5', color = 'black'))
+```
+
+#### 💡 Insight
+
+- Secara keseluruhan cabang, Produk line `Food and Beverages` memiliki total penjualan tertinggi dan produk line `Health and Beauty` memiliki total penjualan terendah.
+
+- Pada insigt sebelumnya, kita melihat produk line `Fashion Accessories` memiliki jumlah transaksi dominan dibeberapa cabang, hal ini sejalan dengan kenyataan bahwa produk line `Fashion Accessories` memliki jumlah transaksi terbanyak diantara produk line lain yaitu 178 atau 17.8% dari keseluruhan transaksi. Namun, nilai penjualan `Fashion Accessories` cenderung berada diposisi ke 4 dari 6, hal ini disebabkan harga produk yang dibeli dari transaksi tersebut relatif lebih murah sehingga berpengaruh pada Total penjualan yang rendah alias meskipun kuantitasnya banyak tetapi harganya relatif lebih murah.
+
+
+#### 🚀 Rekomendasi 
+
+- Sebaiknya kita perlu menemukan penyebab produk line `Health and Beauty` memiliki jumlah total penjualan terendah kemudian menemukan solusinya seperti rekomendasi sebelumnya.
+
+- Kemudian kita perlu meningkatkan nilai penjualan produk line `Fashion Accessories`.
+
+- Secara keseluruhan kita perlu terus mempertahankan dan disatu sisi terus mendorong peningkatkan produk line kita dengan meningkatkan marketing, kepuasan konsumen dan sebagainya.
+
+<br>
+
+## Persebaran Rating
+
+```{r}
+# Visualisasi 
+hist1 <- ggplot(data = supermarket, aes(x = Rating, fill = Branch)) + # Membuat layer canvas
+   geom_histogram(bins = 4, 
+                  color = "darkred") +
+   facet_wrap(~Branch) + 
+   labs(title = "Persebaran Rating Konsumen Dari Setiap Cabang",
+        x = 'Rating',
+        y = 'Frekuensi') +
+  theme_dark() 
+
+ggplotly(hist1)
+```
+
+#### 💡 Insight
+
+- Pada ketiga cabang ini (A, B dan C) cenderung didominasi konsumen yang memberikan rating 5 - 9 dari 10 
+
+- Pada Cabang A, Jumlah konsumen yang memberikan rating 4 dengan 10 memiliki nilai yang serupa.
+
+- Pada Cabang B, Jumlah konsumen yang memberikan rating 4 cenderung lebih banyak dari pada rating 10.
+
+- Pada Cabang C, Jumlah konsumen yang memberikan rating 4 cenderung lebih sedikit dari pada rating 10.
+
+
+#### 🚀 Rekomendasi 
+
+- Cenderung kita mesti meningkatkan kepuasan konsumen kita, hal ini dapat tercermin pada penurunan jumlah rating 4 dan meningkatnya rating 10. Solusinya dapat berupa ramah kepada konsumen, suasana tempat yang bersih dan lain sebagainya.  
+
+<br>
+
+
+## Tren Penjualan
+
+```{r}
+
+# Menambah kolom week (Feature Engineering)
+supermarket$week <-  week(supermarket$Date)
+
+# Persiapan data
+total_trend <- aggregate(Total ~  week + Branch, data = supermarket, FUN = sum)
+
+
+# Visualisasi 
+plt <- 
+ggplot(data = total_trend, aes(x = week, y = round(Total, 2), group = Branch, col = Branch,
+                                      text = paste("Cabang ", Branch,
+                                      "<br>Minggu ke - ", week,
+                                      "<br>Penjualan: $", round(Total/1000,2),"K"))) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "Tren Total Penjualan Dari Setiap Cabang",
+    subtitle = "Periode Jan - Mar 2019 (Minggu ke 1 - 13)",
+    x = "Minggu Ke-",
+    y = "Total Penjualan (dalam USD)") +
+  scale_x_continuous(breaks = seq(1,13,1)) +
+  scale_y_continuous(breaks = seq(0,12000,1000), labels = unit_format(scale = 10e-4, suffix = "K")) +
+  scale_color_manual(values = c("black", "darkgrey", "red")) +
+  theme(legend.position = "top",
+        plot.title.position = "plot") 
+
+ggplotly(plt, tooltip = "text")
+```
+
+#### 💡 Insight
+
+Notes : `K = 000``
+
+- Pada cabang A, cenderung memiliki trend sangat fluktuasi, dengan nilai tertinggi pada minggu ke-3 yaitu 11.9K dan terendah pada minggu ke-13 yaitu 6.2K.
+
+- Pada cabang B, cenderung memiliki trend sangat fluktuasi, dengan nilai tertinggi pada minggu ke-4 yaitu 11.97K dan terendah pada minggu ke-13 yaitu 5.08K.
+
+- Pada cabang C, cenderung memiliki trend sangat fluktuasi, dengan nilai tertinggi pada minggu ke-6 yaitu 12.05K dan terendah pada minggu ke-13 yaitu 4.33K.
+
+
+#### 🚀 Rekomendasi 
+
+- Sebaiknya mesti membangun pendapatan yang lebih stabil dan mengupayakan penjualan minggu kedepan mesti lebih tinggi dari minggu sebelumnya.
+
+<br>
+
+
+## Hari yang Ramai Konsumen
+
+
+```{r}
+# Membuat kolom hari
+
+supermarket$day <- wday(supermarket$Date, label = T, abbr = F)
+
+agg_data <- aggregate(Invoice_ID ~ day + Branch, data = supermarket, FUN = length)
+
+plt <- 
+ggplot(data = agg_data, aes(x = day, y = Invoice_ID, group = Branch, col = Branch,
+                            text = glue(
+                              "Branch : {Branch}
+                              Hari : {day}
+                              Jumlah Transaksi : {Invoice_ID}
+                              ") 
+                            )) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Tren Jumlah Transaksi Per nama Hari di Setiap Cabang",
+       x = "Hari",
+       y = "Jumlah Transaksi")
+ggplotly(plt)
+```
+
+#### 💡Insight 
+
+- Pada cabang A memiliki jumlah transaksi tertinggi pada hari Minggu dan terendah pada hari Rabu. 
+
+- Pada cabang B memiliki jumlah transaksi tertinggi pada hari Sabtu dan terendah pada hari Minggu. 
+
+- Pada cabang C memiliki jumlah transaksi tertinggi pada hari Selasa, Sabtu dan terendah pada hari Senin, Jumat. 
+
+
+#### 📃 Kesimpulan 
+
+Kita bisa melihat pola yang dihasilkan pada grafik di atas cendrung setelah penjualan turun derastis di hari selanjutnya akan mulai naik kembali hingga mencapai titik puncak kemudian menurun kembali.
+
+<br>
+
+## Performa Tiga Kota 
+
+
+Berdasarkan 3 Indikator : `Pendapatan Kotor`, `Jumlah Transaksi` dan `Quantitas`
+
+```{r}
+# Mengumpulkan kolom yang berisis total quantity dan gross income masing2 kota
+data_agg <- aggregate.data.frame(list(Quantity = supermarket$Quantity,
+                                      Gross_Income = supermarket$gross_income),
+                                by = list(city = supermarket$City),
+                                FUN = sum)
+
+# Mengumpulkan jumlah transaksi masing-masing kota
+transaksi <- aggregate(supermarket$City,
+                       by = list(supermarket$City), 
+                       FUN = length)
+
+# Mendapatkan kolom jumlah transaksi untuk data_agg
+data_agg$Jumlah_Transaksi <- transaksi$x
+
+# transform data wide -> long
+city_pivot <- pivot_longer(data = data_agg, 
+                           cols = c("Quantity", "Gross_Income","Jumlah_Transaksi"))
+                             
+# visualisasi
+ggplot(data = city_pivot, aes(x = city, y = value)) +
+  geom_col(aes(fill = city), position = "dodge") +
+  facet_wrap(~name, scales = "free_y") +
+  labs(title = "Performa Tiga Kota Berdasarkan 3 Indikator",
+       subtitle = "Dari Januari 2019 sampai Maret 2019",
+       x = NULL,
+       y = "Nilai",
+       fill = "City :") +
+  theme(axis.text.x = element_blank())
+```
+
+#### 💡 Insight
+
+- Dengan indikator **Gross Income** cenderung kota `Naypyitaw` memiliki nilai tertinggi.
+
+- Dengan indikator **Jumlah Transaksi** cenderung kota `Yangon` memiliki nilai tertinggi.
+
+- Dengan indikator **Quantity** cenderung kota `Yangon` memiliki nilai tertinggi.
+
+
+#### 📃 Esensi
+
+- Kota `Yangon` memang unggul di dua indikator dari 3 namun Kota `Naypyitaw` cenderung merupakan kota yang paling menguntungkan. Jadi performa kota terbaik bisa `Yangon` atau `Naypyitaw` tergantung pertimbangan mana yang mau diutamakan.
+
+<br>
+
+## Performa Gabungan Seluruh Supermarket
+
+```{r}
+# Membuat kolom bulan
+supermarket$month <- month(supermarket$Date, label = T, abbr = F)
+
+# Menyiapkan data
+df_agg <- aggregate.data.frame(list(Total= supermarket$Total,
+                          COGS = supermarket$cogs,
+                          Gross_Income = supermarket$gross_income),
+                     by = list(month = supermarket$month), 
+                     FUN = sum)
+
+df_agg <- pivot_longer(data = df_agg,
+                       cols = c("Total", "COGS", "Gross_Income"),
+                       names_to = "Komponen")
+
+
+# Visualisasi
+plot_col <- 
+ggplot(data = df_agg, aes(x = month, y = value,
+                          text = paste("Month :", month, "\n",
+                                       "Komponen :", Komponen,"\n",
+                                       "Nilai $ :", round(value/1000,2), "K"))) +
+  geom_col(aes(fill = Komponen), position = "dodge") +
+  labs(title = " Tren Total, COGS dan Gross Income\n Dari Jan-Mar 2019",
+       x = NULL,
+       y = "Value $") +
+   scale_y_continuous(labels = unit_format(scale = 10e-4, suffix = "K")) +
+   theme_minimal()
+
+  
+ggplotly(plot_col, tooltip = "text") 
+```
+#### 💡 Insight 
+
+<p style="color: #000000;text-align:justify">
+- Total penjualan supermarket kita mengalami penurunan pada Februari 2019 dibandingkan Januari 2019. Namun demikian, pada bulan berikutnya (Maret 2019) mulai mengalami pemulihan dengan meningkatnya Total penjualan meskipun belum kembali keangka total penjualan pada Januari 2019. 
+
+- Pola total penjualan sebelumnya serupa dengan pola nilai biaya pokok penjualan (COGS) dan juga pendapatan kotor yaitu mengalami penurunan pada Februari 2019 dibandingan Januari 2019 dan mengalami pemulihan pada Maret 2019 meskipun belum ke angka sewaktu Januari 2019. 
+</p>
+
+#### 🚀 Rekomendasi 
+
+<p style="color: #000000;text-align:justify">
+Kita mesti mendorong pertumbuhan penjualan setiap bulan nya agar pendapatan kotor dapat ditingkatkan. Selain itu, kita juga mesti mengupayakan efisiensi biaya pokok penjualan (COGS) ataupun meningkatkan persentase pendapatan kotor per penjualan agar meningkatkan pendapatan kotor. 
+</p>
+
+<br>
+<br>
+
+# Kesimpulan
+
+<p style="color: #000000;text-align:justify">
+🔴 Pada project kali ini telah diulas berbagai hal. Mulai dari Pendahuluan yang berisi permulaan dan pengenalan apa yang akan dibahas dalam project kali ini. 
+
+⚫ Kemudian kita juga telah membahas tahapan persiapan dan wrangling data yang  berisi tentanng menyiapkan data dan menyesuaikan data agar dapat diproses. 
+
+🔴 Setelah itu, membahas eksplorasi dan analisis data yang berisi deskripsi transaksi yang terjadi seperti bagaimana gender dan tipe konsumen, harga barang dsb. Kemudian kita juga mencoba menganalisis performa supermarket berdasarkan `Rating`, `Product line`, `Branch`, `Total penjualan`, `COGS`, dan `Gross Income`. 
+Kita juga membahas performa supermarket yang berkaitan dengan waktu seperti jam dan minggu apa yang memiliki transaksi tinggi. 
+
+⚫ Kita juga telah menganalisi terkait insight, rekomendasi atau kesimpulan dari setiap grafik yang telah dibuat. 
+
+Secara keseluruhan supermarket yang kita bahas pada project ini sudah baik terlihat dari `Gross Income` yang positif, memiliki diversifikasi produk yang beragam, kepuasan konsumen yang baik (Rating didominasi nilai tinggi). Namun, tetap ada catatan untuk menjaga kestabilan pertumbuhan Gross Income dan ukuran lainnya. Kita juga mesti mendongkrak performa produk line `Health and Beauty`
+yang berada di posisi terbawah dibandingkan produk line lainnya. Saya menilai keseluruhan performa supermarket ini 8 dari 10.
+</p>
