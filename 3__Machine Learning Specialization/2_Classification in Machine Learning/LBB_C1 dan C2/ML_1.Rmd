@@ -1,0 +1,424 @@
+---
+title: "Klasifikasi Konsumen"
+author: "Toni Andreas Susanto"
+date: "31 Agustus 2022"
+output:
+  rmdformats::readthedown:
+    df_print: paged
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+# clear-up the environment
+rm(list = ls())
+
+# chunk options
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  comment = "#>"
+)
+
+options(scipen = 999)
+```
+
+# Pendahuluan
+
+<p style="color: #000000;text-align:justify"> 
+Kita selaku tim data dari distributor grosir perlu mengklasifikasikan seorang konsumen baru dengan cepat dan tepat. Dengan kita mengetahui kelompok mana seorang konsumen akan mempermudah kita dalam memberikan promosi, melakukan segmentasi, meningkatkan rasa kedekatan personal dan masih banyak lagi. Melalui manfaat-manfaaat tersebut akan menghasilkan peningkatan penjualan maupun profit. Namun, pada realitasnya sering kali kita sulit menemukan pola, bagaimana membedakan satu kelompok kelas dengan lainnya terutama ketika informasi yang akan diamati sudah lebih dari satu kolom. Oleh karena itu, projek *Machine Learning* ini dibuat untuk mencoba menyelesaikan kesulitan tersebut dengan efektif (karena memiliki ukuran kualitas yang jelas) dan efisien (karena dengan bantuan komputasi bukan manual). Projek ini menggunakan dataset dari [Kaggle](https://www.kaggle.com/datasets/binovi/wholesale-customers-data-set).
+</p>
+ 
+
+# Persiapan dan Wrangling Data
+
+## Pustaka
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(glue)
+library(gtools)
+library(caret)
+library(class)
+```
+
+## Membaca Dataset
+
+```{r}
+whole <- read.csv("data_input/wholesale.csv")
+whole
+```
+
+Deskripsi kolom :
+
+**Kelas Target :**
+
+- `Channel` : Termasuk pada saluran mana, 1 : Horeca (Hotel/Restoran/Cafe) atau 2 : Retail.
+
+**Prediktor**
+
+- `Regions` : Wilayah bagian mana, 1 : Linson; 2 : Oporto; 3 : lainnya.
+- `Fresh` : Pengeluaran tahunan untuk produk segar.
+- `Milk` : Pengeluaran tahunan untuk produk susu.
+- `Grocery` : Pengeluaran tahunan untuk produk sehari-hari.
+- `Frozen` : Pengeluaran tahunan untuk produk beku.
+- `Detergent_Paper` : Pengeluaran tahunan untuk Deterjen dan Kertas
+- `Delicassen` : Pengeluaran tahunan untuk produk makanan.
+
+## Mengecek Nilai Hilang
+
+```{r}
+anyNA(whole)
+```
+> Tidak terdapat nilai hilang sehingga dapat lanjut ke tahap selanjutnya.
+
+## Mengecek Duplikasi Data
+
+```{r}
+anyDuplicated(whole)
+```
+> Tidak terdapat data yang terduplikasi sehingga dapat lanjut ke tahap selanjutnya.
+
+## Menyesuaikan Tipe Data
+
+Melihat nilai unik kolom `Channel` dan `Region`.
+
+```{r}
+lapply(X = whole[, 1:2],
+       FUN = unique)
+```
+
+Untuk data yang memiliki nilai berulang atau bersifat kategorikal dapat kita ubah menjadi `factor()`.
+
+```{r}
+whole_cl <- whole %>% 
+  mutate(Channel = as.factor(Channel),
+         Region = as.factor(Region))
+```
+
+Melihat struktur data :
+
+```{r}
+glimpse(whole_cl)
+```
+- Kita memiliki 440 baris dengan 8 kolom.
+- Terdapat 2 kolom yang bertipe factor yaitu `Channel` dan `Region`
+- Terdapat 6 kolom yang bertipe integer (angka) yaitu `Region`, `Fresh`, `Milk`, `Grocery`, `Frozen`, `Detergents_Paper` dan `Delicassen`.
+
+
+
+# Eksplorasi Data Analisis
+
+## Ringkasan Data
+
+```{r}
+summary(whole_cl)
+```
+
+- Penjualan kita, didominasi `Channel` jenis 1 alias pembeli Horeca (Hotel/Restoran/Cafe).
+- Daerah (`Region`) yang memiliki jumlah observasi terbanyak pada jenis 1 alias daerah Linson, sisanya di jenis 2 dan lainnya
+- Transaksi pembelian `Fresh` tahunan di dominasi (75%) pada total transaksi sebesar 3 sampai 16,934 dengan tertinggi di angka 112,151
+- Transaksi pembelian `Milk` tahunan di dominasi (75%) pada total transaksi sebesar 55 sampai 7,190 dengan tertinggi di angka 73,498.
+- Transaksi pembelian `Grocery` tahunan di dominasi (75%) pada total transaksi sebesar 3 sampai 10,656 dengan tertinggi di angka 92,780
+- Transaksi pembelian `Frozen` tahunan di dominasi (75%) pada total transaksi sebesar 25 sampai 3,554.2 dengan tertinggi di angka 60,869
+- Transaksi pembelian `Detergents_Paper` tahunan di dominasi (75%) pada total transaksi sebesar 3 sampai 3,922 dengan tertinggi di angka 40,827
+- Transaksi pembelian `Delicassen` tahunan di dominasi (75%) pada total transaksi sebesar 3 sampai 1820.2 dengan tertinggi di angka 47,943
+
+## Visualisasi Perbandingan Kelas Target
+
+```{r}
+whole_data <- as.data.frame(table(whole_cl$Channel))
+
+plt <- 
+ggplot(data = whole_data, aes(x = Var1, y = Freq, fill = Var1,
+                              text = glue("Channel : {Var1}.
+                                           Jumlah : {Freq}"))) + 
+  geom_bar(stat = "identity") +
+  labs(title = "Perbandingan Jumlah Konsumen Pada Setiap Channel",
+              y = "Jumlah",
+              x = "Channel") +
+  theme_minimal()
+
+ggplotly(plt, tooltip =  "text" )
+```
+
+> Pada data penjualan ini di dominasi pembeli `Channel` 1 atau Horeca (Hotel/Restoran/Cafe).
+
+# Klasifikasi Dengan :
+
+## Logistic Regression
+
+### 1. Membagi Dataset (*Spliting Dataset*)
+
+<p style="color: #000000;text-align:justify">
+Meskipun proporsi `Channel` 1 dan 2 tidak seimbang tetapi model yang dihasilkan relatif tetap baik. Selain itu, Data yang didapatkan adalah data yang memang terjadi dilapangan bukan estimasi dan lain sebagainya. Kemudian data yang dimiliki relatif sangat terbatas, tidak dapat ditambah. Jadi, saya memilih tidak menyeimbangkan proporsi kelas.
+</p>
+
+```{r}
+set.seed(100)
+
+index <- sample(nrow(whole_cl), nrow(whole_cl)*0.8)
+
+train_whole_lr <- whole_cl[index,]
+test_whole_lr <- whole_cl[-index,]
+```
+
+
+### 2. Membangun Model
+
+Menggunakan semua prediktor untuk membangun model yang dapat memprediksi `Channel`.
+
+```{r}
+model_log <- glm(formula = Channel~., data = train_whole_lr, family = "binomial")
+summary(model_log)
+```
+
+### 3. Menerapkan *Stepwise Regression*
+
+A. Melakukan pemilihan beberapa prediktor yang signifikan.
+
+```{r}
+step(model_log, direction = "backward", trace = FALSE)
+```
+
+B. Menyimpan model hasil *Stepwise Regression*
+
+```{r}
+model_back <-glm(formula = Channel ~ Region + Grocery + Frozen + Detergents_Paper, 
+    family = "binomial", data = train_whole_lr)
+```
+
+C. Mengevaluasi Model Backward dengan Model Biasa (Logistic Regression)
+
+```{r}
+dev_log <- model_log$deviance
+dev_back <- model_back$deviance
+aic_log <- model_log$aic
+aic_back <- model_back$aic
+
+data.frame(Metric = c("Residual deviance", "AIC"),
+           Model_Logistic = c(dev_log, aic_log),
+           Model_Backward = c(dev_back, aic_back))
+```
+
+- Residual deviance: residual deviance menunjukkan error ketika model dengan seluruh prediktor.
+- Akaike Information Criterion (AIC) merepresentasikan banyaknya informasi yang hilang pada model, atau information loss.
+- Kita berusaha mencari nilai residual deviance & AIC terkecil.
+
+> Jadi Pada pertimbangan ini kita menggunakan model backward karena memiliki perbedaan sedikit pada Residual Deviance dan perbedaan banyak pada AIC dibandingkan Model Logistic.
+
+
+D. Intrepretasi Model Backward :
+
+```{r}
+summary(model_back)
+```
+
+- Intercept : -4.79726524
+
+```{r}
+# Ubah menjadi bentuk probabilitas
+inv.logit(-4.79726524) * 100
+```
+> Konsumen yang tinggal di Region 1 berpeluang 0.81% masuk `Channel 2`.
+
+
+- Region2 : 2.16577742
+
+```{r}
+# Ubah menjadi bentuk probabilitas
+inv.logit(2.165777424) * 100
+```
+> Konsumen yang tinggal di Region 2 cenderung lebih berpeluang 89.71 % masuk `Channel 2` dibandingkan konsumen di Region 1.
+
+
+- Region3 : 1.38016112
+
+```{r}
+# Ubah menjadi bentuk probabilitas
+inv.logit(1.38016112) * 100
+```
+> Konsumen yang tinggal di Region 3 cenderung lebih berpeluang 79.90% masuk `Channel 2` dibandingkan konsumen di Region 1.
+
+
+- Grocery : 0.00011753
+
+```{r}
+# Ubah menjadi bentuk odds
+exp(0.00011753)
+```
+> Kemungkinan konsumen termasuk `Channel 2` adalah 1.000118 kali lebih baik dibandingkan konsumen dengan perbedaan 1 satuan nilai `Grocery` di bawahnya.
+
+- Frozen : -0.00014167
+
+```{r}
+# Ubah menjadi bentuk odds
+exp(-0.00014167)
+```
+> Kemungkinan konsumen termasuk `Channel 2` adalah  0.9998583 kali lebih baik dibandingkan konsumen dengan perbedaan 1 satuan nilai `Frozen` di bawahnya.
+
+- Detergents_Paper : 0.00087711
+
+```{r}
+# Ubah menjadi bentuk odds
+exp(0.00087711)
+```
+> Kemungkinan konsumen termasuk `Channel 2` adalah 1.000877 kali lebih baik dibandingkan konsumen dengan perbedaan 1 satuan nilai `Detergent_Paper` di bawahnya.
+
+
+
+### 4. Prediksi
+
+A. Memprediksi data baru dan menghasilkan probabilitas.
+
+```{r}
+test_whole_lr$pred <- predict(object = model_back, newdata = test_whole_lr, type = "response")
+```
+
+B. Mengubah nilai probabilatas menjadi nama kelas target.
+
+```{r}
+test_whole_lr$label_pred <- ifelse(test_whole_lr$pred>0.5, "2", "1") %>% as.factor()
+```
+
+C. Melihat hasil prediksi
+
+```{r}
+test_whole_lr %>% select(pred, label_pred, Channel)
+```
+
+### 5. Evaluasi Model
+
+Confusion Matrix : 
+
+```{r}
+confusionMatrix(data = test_whole_lr$label_pred, reference = test_whole_lr$Channel, positive="1")
+```
+
+Pada umumnya kita mengevaluasi model menggunakan 5 ukuran:
+
+- Re-call/Sensitivity = dari semua data aktual yang `Channel 1`, seberapa mampu proporsi model memprediksi benar.
+- Specificity = dari semua data aktual yang `Channel 2`, seberapa mampu proporsi model memprediksi yang benar.
+- Accuracy = seberapa mampu model memprediksi dengan benar target kelas.
+- Precision = dari semua hasil prediksi, seberapa mampu model saya dapat memprediksi benar kelas `Channel 1`.
+- Negative Predict Value (Neg Pred Value) : dari semua hasil prediksi, seberapa mampu model saya dapat memprediksi benar kelas `Channel 2`.
+
+Sebaiknya pada kasus ini, kita memperhatikan metrik **Sensitivity** dan **Specificity** bukan *Accuracy* karena terdapat ketidakseimbangan kelas.
+
+- Sensitivity : 0.9661         
+- Specificity : 0.8276 
+- Accuracy :0.9205
+- Pos Pred Value : 0.9194
+- Neg Pred Value : 0.9231
+
+> Secara keseluruhan model kita sudah baik karena memiliki nilai metrics di atas 82% semua.
+
+
+
+## K-Nearest Neighboor (KNN)
+
+### 1. Membagi Dataset (*Spliting Dataset*)
+
+```{r}
+set.seed(100)
+
+index <- sample(nrow(whole_cl), nrow(whole_cl)*0.8)
+
+train_whole_knn <- whole_cl[index,]
+test_whole_knn <- whole_cl[-index,]
+```
+
+
+```{r}
+# prediktor data train
+train_x <- train_whole_knn %>% select(-Channel) 
+
+# target data train
+train_y <- train_whole_knn %>% select(Channel) 
+
+# prediktor data test
+test_x <- test_whole_knn %>% select(-Channel)
+
+# target data test
+test_y <- test_whole_knn %>% select(Channel)
+```
+
+### 2. Memilih K Optimum 
+
+- K optimum adalah akar dari jumlah data kita: sqrt(nrow(data))
+- K harus ganjil bila jumlah kelas target genap, dan k harus genap bila jumlah kelas target ganjil. Hal ini untuk menghindari seri ketika *majority voting*. 
+
+```{r}
+sqrt(nrow(train_x))
+```
+
+Dibulatkan dan jumlah kelas 2 (genap) --> K = 19
+
+### 3. Memprediksi Model Berdasarkan Data Latih
+
+```{r}
+y_prediksi <- knn(train = train_x, #prediktor data train
+    test = test_x, # prediktor data test
+    cl = train_y$Channel, #target data train
+    k = 19) # jumlah k yang digunakan untuk klasifikasi
+```
+
+Membandingkan bagaimana hasil prediksi dan nilai sebenarnya. 
+
+```{r}
+data.frame(prediksi = y_prediksi,
+           aktual = test_y$Channel)
+```
+
+
+### 4. Evaluasi KNN
+
+```{r}
+confusionMatrix(data=y_prediksi, reference=test_y$Channel, positive="1")
+```
+
+Pada umumnya kita mengevaluasi model menggunakan 5 ukuran:
+
+- Re-call/Sensitivity = dari semua data aktual yang `Channel 1`, seberapa mampu proporsi model memprediksi benar.
+- Specificity = dari semua data aktual yang `Channel 2`, seberapa mampu proporsi model memprediksi yang benar.
+- Accuracy = seberapa mampu model memprediksi dengan benar target kelas.
+- Precision = dari semua hasil prediksi, seberapa mampu model saya dapat memprediksi benar kelas `Channel 1`.
+- Negative Predict Value (Neg Pred Value) : dari semua hasil prediksi, seberapa mampu model saya dapat memprediksi benar kelas `Channel 2`.
+
+Sebaiknya pada kasus ini, kita memperhatikan metrik **Sensitivity** dan **Specificity** bukan *Accuracy* karena terdapat ketidakseimbangan kelas.
+
+- Sensitivity : 0.9492          
+- Specificity : 0.9310  
+- Accuracy : 0.9432
+- Pos Pred Value (Precision) : 0.9655          
+- Neg Pred Value : 0.9000   
+
+> Secara keseluruhan hasil KNN kita sudah lebih baik karena memiliki nilai metrik sama dengan bahkan lebih dari 90% semua.
+
+
+## Perbandingan Performa Logistic Regression dengan KNN
+
+```{r}
+data.frame(
+  Metrics = c("Sensitivity", "Specificity", "Accuracy", "Pos Pred Value", "Neg Pred Value"),
+  Logistic_Regression = c(0.9661, 0.8276, 0.9205, 0.9194, 0.9231),
+  K_Nearest_Neighboor_KNN = c(0.9492, 0.9310, 0.9432, 0.9655, 0.9000  )
+)
+```
+
+<p style="color: #000000;text-align:justify">
+Secara performa saya merasa dengan menggunakan `K-Nearest Neighboor (KNN)` lebih baik dibandingkan `Logistic Regression`. Hal ini disebabkan nilai Sensitivity dan Specificity nya relatif sangat tinggi. Artinya KNN relatif dapat mengklasifikasikan `Channel 1` dan `Channel 2` dengan sangat baik karena performa dalam membedakan kedua kelas di atas 93%.
+</p>
+
+
+# Kesimpulan
+
+<p style="color: #000000;text-align:justify">
+Kita telah melalui berbagai proses dalam pembuatan *Machine Learning* yang dapat membedakan kelas konsumen (Horeca (Hotel/Restoran/Cafe) atau Retail). Pada proses tersebut, kita telah mencoba dua algoritma dalam membangun *Machine Learning* yaitu **Logistic Regression** dan **K-Nearest Neighboor (KNN)**. Selain itu, kita telah mengevaluasi *Machine Learning* dan menghasilkan kesimpulan bahwa dengan algoritma **K-Nearest Neighboor (KNN)** memiliki performa relatif lebih baik dibandingkan **Logistic Regression**. Harapannya melalui projek ini dapat menjadi referensi dalam membangun *Machine Learning* untuk melakukan klasifikasi sehingga dapat menjadi dasar dalam mengambil keputusan secara efektif dan efisien. Sekian terima kasih banyak yang telah melihat projek ini. Saya juga menyukai masukan dan kolaborasi sehingga apabila ada masukan, saran, kritik atau untuk berkolaborasi dapat menghubungi lewat [Linkedin](https://www.linkedin.com/in/toni-andreas-s).
+</p>
+
+
+
+
