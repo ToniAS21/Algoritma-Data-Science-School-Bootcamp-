@@ -1,0 +1,403 @@
+---
+title: "Klasifikasi dengan Deep Learning"
+author: "Toni Andreas Susanto"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    highlight: zenburn
+    number_sections: yes
+    df_print: paged
+    theme: flatly
+    toc: yes
+    toc_depth: 2
+    toc_float:
+      collapsed: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
+---
+
+
+```{r setup, include=FALSE}
+# clear-up the environment
+rm(list = ls())
+
+# chunk options
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  comment = "#>"
+)
+
+options(scipen = 999)
+```
+
+<style>
+body {
+text-align: justify}
+</style>
+
+
+# Introduction
+
+Kita selaku tim data dari perusahaan pembuat alat pendeteksi asap (*Smoke Detection*) perlu membuat sistem/model yang dapat mengklasifikasikan apakah terdapat api atau tidak dengan efisien dan efektif. 
+
+```{r, out.width = "35%", echo = FALSE, fig.align = "center"}
+knitr::include_graphics("ionization-smoke-detector-500x500.jpg")
+```
+
+Kita menyadari sering kali fenomena yang terjadi dilapangan (realitas) sulit ditemuakan polanya, bagaimana membedakan apakah terdapat api atau tidak, terutama ketika informasi yang menjadi pertimbangan (prediktor) sangat banyak. Oleh karena itu, projek *Machine Learning* ini dibuat untuk mencoba menyelesaikan kesulitan tersebut dengan efektif (karena memiliki ukuran kualitas yang jelas) dan efisien (karena dengan bantuan komputasi bukan manual). Projek ini menggunakan dataset dari [Kaggle](https://www.kaggle.com/datasets/deepcontractor/smoke-detection-dataset).
+
+
+
+# Data Preparation and Wrangling
+
+## Libraries
+
+```{r}
+library(tidyverse)
+library(caret)
+
+library(keras)
+library(rsample)
+library(tensorflow)
+
+library(plotly)
+```
+
+
+## Read Dataset
+
+```{r}
+smoke <- read.csv("smoke_detection_iot.csv")
+smoke
+```
+
+
+Deskripsi kolom :
+
+**Prediktor** : Kolom yang menjadi pertimbangan dalam menentukan Target (input).
+
+- `X` : Index yang menjadi identitas setiap baris.
+- `UTC` : Waktu *UTC Timestamp* dalam detik (data konversi dari waktu biasa menjadi *UTC timestamp*).
+- `Temperature_C` : Tingkat Suhu dalam satuan celcius.
+- `Humidity_percent` : Tingkat Kelembaban dalam persen.
+- `TVOC_ppb` : Total Senyawa Organik Volatil; diukur dalam bagian per miliar dalam ppb.
+- `eCO2_ppm` : Besaran Konsentrasi setara co2; dihitung dari nilai yang berbeda seperti TVCO dalam ppm.
+- `Raw_H2` : Besaran Hidrogen molekuler mentah; tidak dikompensasi (Bias, suhu, dll.).
+- `Raw_Ethanol` : Besaran gas etanol mentah.
+- `Pressure_hPa` : Besaran tekanan udara dalam hPa.
+- `PM1.0` : Besaran partikel dengan diameter hingga 1 mikron.
+- `PM2.5` : Besaran partikel dengan diameter hingga 2.5 mikron.
+- `NC0.5` : *Number Concentration*, Ini berbeda dari PM karena NC memberikan jumlah sebenarnya dari partikel (ukuran <= 0.5 µm) di udara.
+- `NC1.0` : *Number Concentration*, Ini berbeda dari PM karena NC memberikan jumlah sebenarnya dari partikel (ukuran 0.5 µm <= 1 µm) di udara.
+- `NC2.5` : *Number Concentration*, Ini berbeda dari PM karena NC memberikan jumlah sebenarnya dari partikel (ukuran 1 µm < 2.5µm) di udara.
+- `CNT` : Penghitung sampel.
+
+**Target** : Kolom yang menjadi hasil dari pertimbangan prediktor (output).
+
+- `Fire_Alarm` : Menunjukan apakah ada api atau tidak; 1 = terdapat api, 0 = tidak/
+
+## Checking Missing Value
+
+```{r}
+anyNA(smoke)
+```
+> Tidak terdapat nilai hilang sehingga dapat lanjut ke tahap selanjutnya.
+
+
+## Checking Data Duplication
+
+```{r}
+anyDuplicated(smoke)
+```
+> Tidak terdapat data yang terduplikasi sehingga dapat lanjut ke tahap selanjutnya.
+
+
+## Adjusment Type Data
+
+Struktur data sebelum *Wrangling Data*
+
+```{r}
+glimpse(smoke)
+```
+
+Proses *Wrangling Data*
+
+```{r}
+rownames(smoke) <- smoke$X
+
+smoke_clean <- smoke %>% 
+  # Membuang kolom X karena sudah menjadi nama kolom
+  select(-X) %>% 
+  mutate(Fire_Alarm = as.factor(Fire_Alarm))
+```
+
+Struktur data sesudah *Wrangling Data*
+
+```{r}
+glimpse(smoke_clean)
+```
+
+# Eksploratory Data Analysis
+
+## Data Summary
+
+```{r}
+summary(smoke_clean)
+```
+
+## Predictor Exploration 
+
+- Nilai kolom `UTC` berada dikisaran 1,655,000,000
+- Nilai kolom `Temparature_C` didominasi (75%-nya) dari rentang -22.01 C hingga 15.97 C dengan tertingggi di angka 59.93 C.
+- Nilai kolom `Humidity_percent` didominasi (75%-nya) dari rentang 10.74% hingga 53.24% dengan tertingggi di angka 75.20%.
+- Nilai kolom `TVOC_ppb` didominasi (75%-nya) dari rentang 0 ppb hingga 1,189 ppb dengan tertingggi di angka 60,000 ppb.
+- Nilai kolom `eCO2_ppm` didominasi (75%-nya) dari rentang 400 ppm hingga 438 ppm dengan tertingggi di angka 60,000 ppm.
+- Nilai kolom `Raw_H2` didominasi (75%-nya) dari rentang 10,668 hingga 13109 dengan tertingggi di angka 13,803.
+- Nilai kolom `Raw_Ethanol` didominasi (75%-nya) dari rentang 15,317 hingga 20078 dengan tertingggi di angka 21,410.
+- Nilai kolom `Pressure_hPa` didominasi (75%-nya) dari rentang 930.9 hingga 939.4 dengan tertingggi di angka 939.9.
+- Nilai kolom `PM1.0` didominasi (75%-nya) dari rentang 0.00 hingga 2.09 dengan tertingggi di angka 14,333.69 (Sangat tidak merata).
+- Nilai kolom `PM2.5` didominasi (75%-nya) dari rentang 0.00 hingga 2.18 dengan tertingggi di angka 45,432.26.
+- Nilai kolom `NC0.5` didominasi (75%-nya) dari rentang 0.00 hingga 14.42 dengan tertingggi di angka 61,482.03.
+- Nilai kolom `NC1.0` didominasi (75%-nya) dari rentang 0.00 hingga 2.25 dengan tertingggi di angka 51,914.68.
+- Nilai kolom `NC2.5` didominasi (75%-nya) dari rentang 0.000 hingga 0.051 dengan tertingggi di angka 30,026.438.
+- Nilai kolom `CNT` didominasi (75%-nya) dari rentang 0 hingga 17,165 dengan tertingggi di angka 24,993.
+
+
+## Target Exploration
+
+```{r}
+vis_data <- as.data.frame(table(smoke_clean$Fire_Alarm))
+
+plt <- 
+ggplot(data = vis_data, aes(x = Var1, y = Freq, fill = Var1,
+                              text = glue::glue("Target : {Var1}.
+                                           Jumlah : {Freq}"))) + 
+  geom_bar(stat = "identity") +
+  labs(title = "Perbandingan Target 0 (Tidak Terdapat Api) dan 1 (Terdapat Api)",
+              y = "Jumlah",
+              x = "Fire Alarm") +
+  theme_minimal()
+
+ggplotly(plt, tooltip =  "text" )
+```
+
+> Pada data smoke ini di dominasi `Fire_Alarm` 1 atau terdapat Api.
+
+
+# Modeling
+
+## Split Data Train-Test
+
+```{r}
+prop.table(table(smoke_clean$Fire_Alarm))
+```
+
+> Kita menyadari proporsi Target 0 dan 1 pada data kita cenderung tidak seimbang karena Target 0 hanya 28.53% sedangkan Target 1 sebesar 71.46%.
+
+
+```{r}
+RNGkind(sample.kind = "Rounding")
+set.seed(100)
+index <- initial_split(data = smoke_clean, #data asli sebelum splitting
+                       prop = 0.74,
+                       strata = Fire_Alarm) 
+  
+train <- training(index)
+test <- testing(index)
+
+
+train <- upSample(x = train %>% select(-Fire_Alarm),
+                  y = train$Fire_Alarm,
+                  yname = "Fire_Alarm")
+```
+
+Oleh karena itu, kita mencoba membagi data train dan test dengan proporsi 74% untuk data train dan 26% untuk data test. Kenapa tidak 80% dan 20%? Agar setelah dilakukan UpSample (Menambah data dengan menduplikasi agar antara jenis target seimbang) pada data train perbandingan data train dan test cenderung sekitar 80% dan 20%.
+
+Kita menyeimbangkan proporsi Target 0 dan 1 hanya pada data train saja karena fokus pada pelatihan model adalah menemukan pola data dalam membedakan Target 0 dengan 1. Sehingga diperlukan bahan belajar (data train) yang seimbang.
+
+- Proporsi Jenis Target Pada Data Train :  
+
+```{r}
+prop.table(table(train$Fire_Alarm))
+```
+
+Kita tidak menyeimbangkan proporsi Target 0 dan 1 pada data test karena fokus pada pengetesan model adalah menguji apakah model kita sudah dapat menemukan pola yang membedakan Target 0 dengan 1. Sehingga tidak diperlukan soal ujian (data test) yang seimbang.
+
+- Proporsi Jenis Target Pada Data Test :  
+
+Kita menyamakan proporsi Target 0 dan 1 pada data test seperti pada data aslinya (`smoke_clean`). Karena kita mengharapkan model dapat melakukan prediksi yang sesuai dengan keadaan realitas. Alias pada pelatihan model telah berhasil menemukakn pola pembeda Target 0 dan 1.
+
+```{r}
+prop.table(table(smoke_clean$Fire_Alarm))
+```
+
+```{r}
+prop.table(table(test$Fire_Alarm))
+```
+
+Berikut jumlah dan proporasi data train dan test setelah dilakukan `UpSample`.
+
+```{r}
+prop_train <- nrow(train)/(nrow(train) + nrow(test))*100
+prop_test <- nrow(test)/(nrow(train) + nrow(test))*100
+
+data.frame(Data = c("Train", "Test", "Total"),
+           Jumlah = c(nrow(train), nrow(test), nrow(train)+nrow(test)),
+           Proporsi_persen = c(prop_train, prop_test, prop_train + prop_test)
+           
+           )
+```
+
+
+## Scaling Data
+
+```{r}
+train_scale <- train %>% 
+  mutate(UTC = scale(UTC),
+         Temperature_C = scale(Temperature_C),
+         Humidity_percent = scale(Humidity_percent),
+         TVOC_ppb = scale(TVOC_ppb),
+         eCO2_ppm = scale(eCO2_ppm),
+         Raw_H2 = scale(Raw_H2),
+         Raw_Ethanol = scale(Raw_Ethanol),
+         Pressure_hPa = scale(Pressure_hPa),
+         PM1.0 = scale(PM1.0),
+         PM2.5 = scale(PM2.5),
+         NC0.5 = scale(NC0.5),
+         NC1.0 = scale(NC1.0),
+         NC2.5 = scale(NC2.5),
+         CNT = scale(CNT)
+        )
+
+test_scale <- test %>% 
+  mutate(UTC = scale(UTC),
+         Temperature_C = scale(Temperature_C),
+         Humidity_percent = scale(Humidity_percent),
+         TVOC_ppb = scale(TVOC_ppb),
+         eCO2_ppm = scale(eCO2_ppm),
+         Raw_H2 = scale(Raw_H2),
+         Raw_Ethanol = scale(Raw_Ethanol),
+         Pressure_hPa = scale(Pressure_hPa),
+         PM1.0 = scale(PM1.0),
+         PM2.5 = scale(PM2.5),
+         NC0.5 = scale(NC0.5),
+         NC1.0 = scale(NC1.0),
+         NC2.5 = scale(NC2.5),
+         CNT = scale(CNT)
+        )
+```
+
+
+## Data Preprocessing for Deep Learning
+
+### Separation of Predictors and Targets
+
+```{r}
+# Prediktor
+train_x <- train_scale %>% select(-Fire_Alarm) %>% as.matrix()
+train_y <- train_scale$Fire_Alarm %>% as.character()
+
+# Target
+test_x <- test_scale %>% select(-Fire_Alarm) %>% as.matrix()
+test_y <- test_scale$Fire_Alarm %>% as.character()
+```
+
+### Turning Predictors Into Arrays
+
+```{r}
+train_x <- array_reshape(train_x, dim = dim(train_x))
+test_x <- array_reshape(test_x, dim = dim(test_x))
+```
+
+### One-hot Encoding Target Variable
+
+```{r}
+train_y <- to_categorical(train_y, num_classes = 2)
+test_y <- to_categorical(test_y, num_classes = 2)
+```
+
+## Building Architecture
+
+```{r}
+# your code here
+input_dim <- ncol(train_x) # jumlah neuron yang ada di input layer
+input_dim
+```
+
+```{r}
+num_class <- n_distinct(train$Fire_Alarm) # jumlah neuron yang ada di output layer 
+num_class
+```
+
+```{r}
+model1 <- keras_model_sequential(name="model_keras") %>% 
+  layer_dense(units = 64, activation = "relu", input_shape = input_dim, name = "hidden_1") %>%
+  layer_dense(units = 16, activation = "relu", name = "hidden_2") %>% 
+  layer_dense(units = num_class, activation = "sigmoid", name = "output")
+
+model1
+```
+
+## Model Compile
+
+```{r}
+# your code here
+model1 %>% compile(loss = loss_binary_crossentropy(),
+                   optimizer = optimizer_sgd(learning_rate = 0.01),
+                   metrics = "accuracy")
+```
+
+
+## Model Fitting
+
+```{r}
+set.seed(100)
+# your code here
+history <- model1 %>% fit(x = train_x,
+                          y = train_y,
+                          validation_data = list(test_x, test_y),
+                          batch_size = 200,
+                          epoch=15)
+plot(history)
+```
+
+
+## Model Evaluation
+
+```{r}
+# your code here
+pred <- predict(model1, test_x) %>% k_argmax() %>% as.array() %>% as.factor()
+head(pred)
+```
+
+```{r}
+confusionMatrix(data = pred, reference = as.factor(test$Fire_Alarm), positive = "1")
+```
+
+Pada umumnya kita mengevaluasi model menggunakan 5 ukuran:
+
+- Re-call/Sensitivity = dari semua data aktual yang 1 (terdapat api), seberapa mampu proporsi model memprediksi benar.
+- Specificity = dari semua data aktual yang 0 (tidak terdapat api), seberapa mampu proporsi model memprediksi yang benar.
+- Accuracy = seberapa mampu model memprediksi dengan benar target Target secara keseluruhan.
+- Precision (Pos Pred Value) = dari semua hasil prediksi Target 1 (terdapat api), seberapa mampu model saya dapat memprediksi benar.
+- Negative Predict Value (Neg Pred Value) : dari semua hasil prediksi Target 0 (tidak terdapat api), seberapa mampu model saya dapat memprediksi benar.
+
+
+Sebaiknya pada kasus ini, kita memperhatikan metrik selain Accuracy karena data test asli memiliki ketidakseimbangan Target.
+
+- Sensitivity : 0.8863
+- Specificity : 0.9987
+- Accuracy : 0.9184
+- Pos Pred Value (Precision) : 0.9994
+- Neg Pred Value : 0.7782
+
+> Secara keseluruhan model Deep Learning kita sudah baik karena dapat mengklasifikasikan data dengan baik, terlihat pada 4 metrik (Sensitivity, Specificity, Accuracy, dan Precision) tetapi untuk ukuran Neg Pred Value (Kemampuan model memprediksi kelas negatif (0)) masih sedang yaitu 77,82%.
+
+
+# Conclusion
+
+Kita telah melalui berbagai proses dalam pembuatan Machine Learning yang dapat membedakan Target 0 (Tidak Terdapat Api) dan 1 (Terdapat Api). Pada proses tersebut, kita telah mencoba *Deep Learning* dalam membangun Machine Learning. Selain itu, kita telah mengevaluasi Machine Learning dan menghasilkan kesimpulan bahwa algoritma Deep Learning memiliki performa baik dan memiliki catatan pada ukuran Negative Predict Value. Pada projek ini saya juga telah mencoba tuning model (mengatur learning rate, batch_size, neuron, epoch dsb) tetapi hasilnya masih seperti menyerupai di atas. Harapannya melalui projek ini dapat menjadi referensi dalam membangun *Machine Learning* untuk melakukan klasifikasi sehingga dapat menjadi dasar dalam mengambil keputusan secara efektif dan efisien. Sekian terima kasih banyak yang telah melihat projek ini. Saya juga menyukai masukan dan kolaborasi sehingga apabila ada masukan, saran, kritik atau untuk berkolaborasi dapat menghubungi lewat [Linkedin](https://www.linkedin.com/in/toni-andreas-s).
+
