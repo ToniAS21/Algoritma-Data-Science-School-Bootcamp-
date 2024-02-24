@@ -1,0 +1,14 @@
+name: Sales_Dashboard
+title: Sales_Dashboard
+username:
+account: toni-andreas-s
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 6753619
+bundleId: 6179159
+url: https://toni-andreas-s.shinyapps.io/Sales_Dashboard/
+when: 1659957406.9829
+lastSyncTime: 1659957406.98292
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: data_input/superstore_dataset2011-2015.csv|pre_processing.Rmd

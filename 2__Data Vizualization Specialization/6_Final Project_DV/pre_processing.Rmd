@@ -1,0 +1,89 @@
+---
+title: "pre_processing"
+author: "Toni Andreas Susanto"
+date: "8/8/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Library 
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(plotly)
+library(highcharter)
+library(lubridate)
+library(mapdata)
+library(tidyr)
+library(zoo)
+library(echarts4r)
+library(scales)
+library(glue)
+library(dplyr)
+```
+
+# Read Data
+
+```{r}
+df <- read.csv("data_input/superstore_dataset2011-2015.csv")
+```
+
+# Delete Unnecessary Columns
+
+```{r}
+df$Discount <- NULL
+df$Postal.Code <- NULL
+df$Ship.Date <- NULL
+df$Shipping.Cost <- NULL
+  
+df
+```
+# Check Missing Value
+
+```{r}
+anyNA(df)
+```
+
+# Check Duplication
+
+```{r}
+anyDuplicated(df)
+```
+
+# Data Wrangling
+
+```{r}
+# Adjustment Type data
+df <- 
+df %>% mutate(
+  Row.ID = as.character(Row.ID),
+  Ship.Mode = as.factor(Ship.Mode),
+  Order.Date = dmy(Order.Date),
+  Customer.Name = as.factor(Customer.Name),
+  Segment = as.factor(Segment),
+  City = as.factor(City),
+  State = as.factor(State),
+  Country = as.factor(Country),
+  Market = as.factor(Market),
+  Region = as.factor(Region),
+  Category = as.factor(Category),
+  Sub.Category = as.factor(Sub.Category),
+  Product.Name = as.factor(Product.Name),
+  Order.Priority = as.factor(Order.Priority),
+  Customer.ID = as.factor(Customer.ID)
+)
+
+# Create new column
+df$year <- year(df$Order.Date)
+df$yearMonth <- as.yearmon(df$Order.Date)
+```
+
+# Save data clean
+
+```{r}
+#saveRDS(df, "app/superstore.rds")
+```
