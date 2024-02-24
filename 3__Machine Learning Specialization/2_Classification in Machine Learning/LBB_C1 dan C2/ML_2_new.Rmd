@@ -1,0 +1,447 @@
+---
+title: "Klasifikasi Alarm Kebakaran"
+author: "Toni Andreas Susanto"
+date: "3 Agustus 2022"
+output:
+  rmdformats::readthedown:
+    df_print: paged
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+# clear-up the environment
+rm(list = ls())
+
+# chunk options
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  comment = "#>"
+)
+
+options(scipen = 999)
+```
+
+<style>
+body {
+text-align: justify}
+</style>
+
+# Pendahuluan
+
+Kita selaku tim data dari perusahaan pembuat alat pendeteksi asap (*Smoke Detection*) perlu membuat sistem/model yang dapat mengklasifikasikan apakah terdapat api atau tidak dengan efisien dan efektif. 
+
+```{r, out.width = "35%", echo = FALSE, fig.align = "center"}
+knitr::include_graphics("ionization-smoke-detector-500x500.jpg")
+```
+
+Kita menyadari sering kali fenomena yang terjadi dilapangan (realitas) sulit ditemuakan polanya, bagaimana membedakan apakah terdapat api atau tidak, terutama ketika informasi yang menjadi pertimbangan (prediktor) sangat banyak. Oleh karena itu, projek *Machine Learning* ini dibuat untuk mencoba menyelesaikan kesulitan tersebut dengan efektif (karena memiliki ukuran kualitas yang jelas) dan efisien (karena dengan bantuan komputasi bukan manual). Projek ini menggunakan dataset dari [Kaggle](https://www.kaggle.com/datasets/deepcontractor/smoke-detection-dataset).
+
+
+
+# Persiapan dan Wrangling Data
+
+## Pustaka
+
+```{r}
+library(dplyr)
+library(rsample)
+
+library(ggplot2)
+library(plotly)
+
+library(caret)
+library(e1071)
+library(partykit)
+```
+
+## Membaca Dataset
+
+```{r}
+smoke <- read.csv("smoke_detection_iot.csv")
+smoke
+```
+
+
+Deskripsi kolom :
+
+**Prediktor** : Kolom yang menjadi pertimbangan dalam menentukan Target (input).
+
+- `X` : Index yang menjadi identitas setiap baris.
+- `UTC` : Waktu *UTC Timestamp* dalam detik (data konversi dari waktu biasa menjadi *UTC timestamp*).
+- `Temperature_C` : Tingkat Suhu dalam satuan celcius.
+- `Humidity_percent` : Tingkat Kelembaban dalam persen.
+- `TVOC_ppb` : Total Senyawa Organik Volatil; diukur dalam bagian per miliar dalam ppb.
+- `eCO2_ppm` : Besaran Konsentrasi setara co2; dihitung dari nilai yang berbeda seperti TVCO dalam ppm.
+- `Raw_H2` : Besaran Hidrogen molekuler mentah; tidak dikompensasi (Bias, suhu, dll.).
+- `Raw_Ethanol` : Besaran gas etanol mentah.
+- `Pressure_hPa` : Besaran tekanan udara dalam hPa.
+- `PM1.0` : Besaran partikel dengan diameter hingga 1 mikron.
+- `PM2.5` : Besaran partikel dengan diameter hingga 2.5 mikron.
+- `NC0.5` : *Number Concentration*, Ini berbeda dari PM karena NC memberikan jumlah sebenarnya dari partikel (ukuran <= 0.5 µm) di udara.
+- `NC1.0` : *Number Concentration*, Ini berbeda dari PM karena NC memberikan jumlah sebenarnya dari partikel (ukuran 0.5 µm <= 1 µm) di udara.
+- `NC2.5` : *Number Concentration*, Ini berbeda dari PM karena NC memberikan jumlah sebenarnya dari partikel (ukuran 1 µm < 2.5µm) di udara.
+- `CNT` : Penghitung sampel.
+
+**Target** : Kolom yang menjadi hasil dari pertimbangan prediktor (output).
+
+- `Fire_Alarm` : Menunjukan apakah ada api atau tidak; 1 = terdapat api, 0 = tidak/
+
+## Mengecek Nilai Hilang
+
+```{r}
+anyNA(smoke)
+```
+> Tidak terdapat nilai hilang sehingga dapat lanjut ke tahap selanjutnya.
+
+## Mengecek Duplikasi Data
+
+```{r}
+anyDuplicated(smoke)
+```
+> Tidak terdapat data yang terduplikasi sehingga dapat lanjut ke tahap selanjutnya.
+
+
+## Menyesuaikan Data
+
+Struktur data sebelum *Wrangling Data*
+
+```{r}
+glimpse(smoke)
+```
+
+Proses *Wrangling Data*
+
+```{r}
+# Menjadikan kolom X menjadi nama kolom
+rownames(smoke) <- smoke$X
+
+smoke_clean <- smoke %>% 
+  # Membuang kolom X karena sudah menjadi nama kolom
+  select(-X) %>% 
+  # Mengubah tipe data target Target menjadi factor
+  mutate(Fire_Alarm = as.factor(Fire_Alarm))
+```
+
+Struktur data sesudah *Wrangling Data*
+
+```{r}
+glimpse(smoke_clean)
+```
+
+
+# Eksplorasi Data Analisis
+
+## Ringkasan Data
+
+```{r}
+summary(smoke_clean)
+```
+
+## Eksplorasi Prediktor 
+
+- Nilai kolom `UTC` berada dikisaran 1,655,000,000
+- Nilai kolom `Temparature_C` didominasi (75%-nya) dari rentang -22.01 C hingga 15.97 C dengan tertingggi di angka 59.93 C.
+- Nilai kolom `Humidity_percent` didominasi (75%-nya) dari rentang 10.74% hingga 53.24% dengan tertingggi di angka 75.20%.
+- Nilai kolom `TVOC_ppb` didominasi (75%-nya) dari rentang 0 ppb hingga 1,189 ppb dengan tertingggi di angka 60,000 ppb.
+- Nilai kolom `eCO2_ppm` didominasi (75%-nya) dari rentang 400 ppm hingga 438 ppm dengan tertingggi di angka 60,000 ppm.
+- Nilai kolom `Raw_H2` didominasi (75%-nya) dari rentang 10,668 hingga 13109 dengan tertingggi di angka 13,803.
+- Nilai kolom `Raw_Ethanol` didominasi (75%-nya) dari rentang 15,317 hingga 20078 dengan tertingggi di angka 21,410.
+- Nilai kolom `Pressure_hPa` didominasi (75%-nya) dari rentang 930.9 hingga 939.4 dengan tertingggi di angka 939.9.
+- Nilai kolom `PM1.0` didominasi (75%-nya) dari rentang 0.00 hingga 2.09 dengan tertingggi di angka 14,333.69 (Sangat tidak merata).
+- Nilai kolom `PM2.5` didominasi (75%-nya) dari rentang 0.00 hingga 2.18 dengan tertingggi di angka 45,432.26.
+- Nilai kolom `NC0.5` didominasi (75%-nya) dari rentang 0.00 hingga 14.42 dengan tertingggi di angka 61,482.03.
+- Nilai kolom `NC1.0` didominasi (75%-nya) dari rentang 0.00 hingga 2.25 dengan tertingggi di angka 51,914.68.
+- Nilai kolom `NC2.5` didominasi (75%-nya) dari rentang 0.000 hingga 0.051 dengan tertingggi di angka 30,026.438.
+- Nilai kolom `CNT` didominasi (75%-nya) dari rentang 0 hingga 17,165 dengan tertingggi di angka 24,993.
+
+
+## Eksplorasi Target
+
+```{r}
+vis_data <- as.data.frame(table(smoke_clean$Fire_Alarm))
+
+plt <- 
+ggplot(data = vis_data, aes(x = Var1, y = Freq, fill = Var1,
+                              text = glue::glue("Target : {Var1}.
+                                           Jumlah : {Freq}"))) + 
+  geom_bar(stat = "identity") +
+  labs(title = "Perbandingan Target 0 (Tidak Terdapat Api) dan 1 (Terdapat Api)",
+              y = "Jumlah",
+              x = "Fire Alarm") +
+  theme_minimal()
+
+ggplotly(plt, tooltip =  "text" )
+```
+
+> Pada data smoke ini di dominasi `Fire_Alarm` 1 atau terdapat Api.
+
+
+# Pemodelan
+
+## Split Data Train-Test
+
+```{r}
+prop.table(table(smoke_clean$Fire_Alarm))
+```
+
+> Kita menyadari proporsi Target 0 dan 1 pada data kita cenderung tidak seimbang karena Target 0 hanya 28.53% sedangkan Target 1 sebesar 71.46%.
+
+```{r}
+RNGkind(sample.kind = "Rounding")
+set.seed(100)
+index <- initial_split(data = smoke_clean, #data asli sebelum splitting
+                       prop = 0.74,
+                       strata = Fire_Alarm) 
+  
+train <- training(index)
+test <- testing(index)
+
+
+train <- upSample(x = train %>% select(-Fire_Alarm),
+                  y = train$Fire_Alarm,
+                  yname = "Fire_Alarm")
+```
+
+Oleh karena itu, kita mencoba membagi data train dan test dengan proporsi 74% untuk data train dan 26% untuk data test. Kenapa tidak 80% dan 20%? Agar setelah dilakukan UpSample (Menambah data dengan menduplikasi agar antara jenis target seimbang) pada data train perbandingan data train dan test cenderung sekitar 80% dan 20%.
+
+Kita menyeimbangkan proporsi Target 0 dan 1 hanya pada data train saja karena fokus pada pelatihan model adalah menemukan pola data dalam membedakan Target 0 dengan 1. Sehingga diperlukan bahan belajar (data train) yang seimbang.
+
+- Proporsi Jenis Target Pada Data Train :  
+
+```{r}
+prop.table(table(train$Fire_Alarm))
+```
+
+Kita tidak menyeimbangkan proporsi Target 0 dan 1 pada data test karena fokus pada pengetesan model adalah menguji apakah model kita sudah dapat menemukan pola yang membedakan Target 0 dengan 1. Sehingga tidak diperlukan soal ujian (data test) yang seimbang.
+
+- Proporsi Jenis Target Pada Data Test :  
+
+Kita menyamakan proporsi Target 0 dan 1 pada data test seperti pada data aslinya (`smoke_clean`). Karena kita mengharapkan model dapat melakukan prediksi yang sesuai dengan keadaan realitas. Alias pada pelatihan model telah berhasil menemukakn pola pembeda Target 0 dan 1.
+
+```{r}
+prop.table(table(smoke_clean$Fire_Alarm))
+```
+
+```{r}
+prop.table(table(test$Fire_Alarm))
+```
+
+Berikut jumlah dan proporasi data train dan test setelah dilakukan `UpSample`.
+
+```{r}
+prop_train <- nrow(train)/(nrow(train) + nrow(test))*100
+prop_test <- nrow(test)/(nrow(train) + nrow(test))*100
+
+data.frame(Data = c("Train", "Test", "Total"),
+           Jumlah = c(nrow(train), nrow(test), nrow(train)+nrow(test)),
+           Proporsi_persen = c(prop_train, prop_test, prop_train + prop_test)
+           
+           )
+```
+
+
+
+## Naive Bayes
+
+### 1. Melakukan Scaling
+
+```{r}
+train_scale <- train %>% 
+  mutate(UTC = scale(UTC),
+         Temperature_C = scale(Temperature_C),
+         Humidity_percent = scale(Humidity_percent),
+         TVOC_ppb = scale(TVOC_ppb),
+         eCO2_ppm = scale(eCO2_ppm),
+         Raw_H2 = scale(Raw_H2),
+         Raw_Ethanol = scale(Raw_Ethanol),
+         Pressure_hPa = scale(Pressure_hPa),
+         PM1.0 = scale(PM1.0),
+         PM2.5 = scale(PM2.5),
+         NC0.5 = scale(NC0.5),
+         NC1.0 = scale(NC1.0),
+         NC2.5 = scale(NC2.5),
+         CNT = scale(CNT)
+        )
+
+test_scale <- test %>% 
+  mutate(UTC = scale(UTC),
+         Temperature_C = scale(Temperature_C),
+         Humidity_percent = scale(Humidity_percent),
+         TVOC_ppb = scale(TVOC_ppb),
+         eCO2_ppm = scale(eCO2_ppm),
+         Raw_H2 = scale(Raw_H2),
+         Raw_Ethanol = scale(Raw_Ethanol),
+         Pressure_hPa = scale(Pressure_hPa),
+         PM1.0 = scale(PM1.0),
+         PM2.5 = scale(PM2.5),
+         NC0.5 = scale(NC0.5),
+         NC1.0 = scale(NC1.0),
+         NC2.5 = scale(NC2.5),
+         CNT = scale(CNT)
+        )
+```
+
+> Kita membuat data yang memiliki skala yang sama karena terbukti meningkatkan performa model Naive Bayes.
+
+### 2. Membangun Model
+
+```{r}
+model_nb <- naiveBayes(Fire_Alarm~., train_scale)
+```
+
+> Kita menjadikan kolom `Fire_Alarm` sebagai target dan kolom sisanya sebagai predikor.
+
+### 3. Prediksi Data Test
+
+```{r}
+pred_nb <- predict(object = model_nb, newdata = test_scale, type = "class")
+```
+
+Membandingkan bagaimana hasil prediksi dan nilai sebenarnya. 
+
+```{r}
+data.frame(prediksi = pred_nb,
+           aktual = test$Fire_Alarm)
+```
+
+### 4. Evaluasi Model
+
+```{r}
+confusionMatrix(data = pred_nb, reference = test_scale$Fire_Alarm, positive = "1")
+```
+
+Pada umumnya kita mengevaluasi model menggunakan 5 ukuran:
+
+- Re-call/Sensitivity = dari semua data aktual yang `1` (terdapat api), seberapa mampu proporsi model memprediksi benar.
+- Specificity = dari semua data aktual yang `0` (tidak terdapat api), seberapa mampu proporsi model memprediksi yang benar.
+- Accuracy = seberapa mampu model memprediksi dengan benar target Target secara keseluruhan.
+- Precision (Pos Pred Value) = dari semua hasil prediksi Target `1` (terdapat api), seberapa mampu model saya dapat memprediksi benar.
+- Negative Predict Value (Neg Pred Value) : dari semua hasil prediksi Target `0` (tidak terdapat api), seberapa mampu model saya dapat memprediksi benar.
+
+
+Sebaiknya pada kasus ini, kita memperhatikan metrik selain *Accuracy* karena data test asli memiliki ketidakseimbangan Target. 
+
+- Sensitivity : 0.9751                  
+- Specificity : 0.6594          
+- Accuracy : 0.885                                       
+- Pos Pred Value (Precision) : 0.8776                            
+- Neg Pred Value : 0.9135                     
+
+> Model kita sudah menghasilkan performa yang cukup baik pada beberapa ukuran, tetapi pada ukuran *Specificity* masih kurang baik. Hal ini berarti performa model kita dalam memprediksi Target 0 (Tidak terdapat api) masih kurang baik jika dibandingkan dengan total data sebenarnya Target 0. Dari 4,647 data Target 0, model melakukan kesalahan sebanyak 1,583 kali. 
+
+
+
+## Decision Tree
+
+Kita ingin mencoba algoritma Decision Tree dalam mengklasifikasikan dataset yang sama. Harapannya dapat menghasilkan model yang baik. 
+
+### 1. Membangun Model
+
+```{r}
+subs_tree <- ctree(formula = Fire_Alarm~., data = train)
+```
+
+> Kita menjadikan kolom `Fire_Alarm` sebagai target dan kolom sisanya sebagai predikor. Kita tidak menggunakan data train yang telah di skalakan karena secara performa lebih baik tidak di skalakan. 
+
+### 2. Interpretasi Model
+
+```{r}
+subs_tree
+```
+
+```{r, fig.dim = c(18, 10)}
+# visualisasi decision tree
+plot(subs_tree, type="simple")
+```
+
+A. Deskripsi : 
+
+- Yang berbentuk Oval no 1 merupakan Root Node : Percabangan pertama dalam menentukan nilai target yaitu `CNT`.
+- Yang berbentuk Oval no 2, 3, 4, 6, 8, 11 dan 14 merupakan Interior Node : Percabangan selanjutnya yang menggunakan prediktor lain apabila Root Node tidak cukup menentukan target. 
+- Yang berbentuk persegi panjang no 5, 7, 9, 10, 12, 13, 15, 16, 17 merupakan Terminal/Leaf Node : Keputusan akhir berupa nilai target yang diprediksi. 
+
+B. Model *Decision Tree* kita berhasil mengklasifikasikan data hampir mendekati sempurna karena error yang dihasilkan kebanyakan 0% dan hanya satu yang 0.5% (pada node no 13).
+
+C. Kemudian terdapat pula beberapa prediktor yang tidak digunakan contohnya `PM0.5`,`PM2.5` dll berarti memang model sudah cukup menggunakan sebagian prediktor saja dalam mengklasifikasikan data kita. 
+
+D. Model kita menghasilkan aturan dalam memprediksi sebagai berikut. 
+
+1. Melihat nilai data CNT apakah > 5743, jika ya maka langsung diklasifikasikan 1 alias terdapat api dan tingkat kesalahan (error) adalah 0%. 
+
+2. Apabila `CNT` <= 5743, maka akan dicek kembali apakah : 
+
+   - `CNT` > 3177, jika ya maka dilanjutkan dengan melihat nilai `Pressure_hPa`, jika > 937.501 maka diklasifikasikan terdapat api (error = 0%), jika <= 937.501 maka diklasifikasikan tidak terdapat api (error = 0%)
+   - Atau CNT <= 3177, maka dilanjutkan dengan melihat `Pressure_hPa`, jika > 931.269 maka dilanjutkan mengecek `eCO2_ppm`, jika <= 453 maka diklasifikasikan tidak terdapat api (error = 0%), jika > 453 maka diklasifikasikan terdapat api (error = 0.5%) 
+
+3. Ketika node no 3, nilai `Pressure_hPac` <= 931.269 maka akan dilanjutkan mengecek `Temperature_C`. Jika suhu <= 20.67 maka langsung diklasifikasikan tidak terdapat api (error = 0%). Jika suhu > 20.67 maka dilanjutkan mengecek `Pressure_hPa`. Ketika `Pressure_hPa` <= 931.179 maka langsung diklasifikasikan terdapat api (error = 0%). 
+
+4. Tetapi ketika `Pressure_hPa` > 931.179 maka dilanjutkan mengecek `PM1.0`. Ketika `PM1.0` <= 140.84 maka diklasifikasikan tidak terdapat api (error = 0%) dan ketika `PM1.0` > 140.84 maka diklasifikasikan terdapat api (error = 0%).
+
+
+### 3. Prediksi Data Test
+
+```{r}
+pred_dt <- predict(object = subs_tree, newdata = test, type = "response")
+```
+
+
+Membandingkan bagaimana hasil prediksi dan nilai sebenarnya. 
+
+```{r}
+data.frame(prediksi = pred_dt,
+           aktual = test$Fire_Alarm)
+```
+
+
+### 4. Evaluasi Model
+
+```{r}
+confusionMatrix(data = pred_dt, reference = test$Fire_Alarm, positive = "1")
+```
+
+Pada umumnya kita mengevaluasi model menggunakan 5 ukuran:
+
+- Re-call/Sensitivity = dari semua data aktual yang `1` (terdapat api), seberapa mampu proporsi model memprediksi benar.
+- Specificity = dari semua data aktual yang `0` (tidak terdapat api), seberapa mampu proporsi model memprediksi yang benar.
+- Accuracy = seberapa mampu model memprediksi dengan benar target Target secara keseluruhan.
+- Precision (Pos Pred Value) = dari semua hasil prediksi Target `1` (terdapat api), seberapa mampu model saya dapat memprediksi benar.
+- Negative Predict Value (Neg Pred Value) : dari semua hasil prediksi Target `0` (tidak terdapat api), seberapa mampu model saya dapat memprediksi benar.
+
+
+Sebaiknya pada kasus ini, kita memperhatikan metrik selain *Accuracy* karena data test asli memiliki ketidakseimbangan Target. 
+
+- Sensitivity : 0.9998          
+- Specificity : 0.9996  
+- Accuracy : 0.9998                              
+- Pos Pred Value (Precision) : 0.9998                    
+- Neg Pred Value : 0.9996             
+
+Kita berhasil menghasilkan model yang hanya salah 4 kali dalam mengklasifikasikan Target dari data test yang berisi 16,284 data. 
+
+> Secara keseluruhan model `Decision Tree` kita sudah sangat baik karena semua metrik memiliki performa hampir 100%.
+
+
+## Perbandingan Performa Naive Bayes dengan Decision Tree
+
+```{r}
+data.frame(
+  Metrics = c("Sensitivity", "Specificity", "Accuracy", "Pos Pred Value", "Neg Pred Value"),
+  Naive_Bayes = c(0.9751, 0.6594, 0.885, 0.8776, 0.9135  ),
+  Decision_Tree = c(0.9998, 0.9996, 0.9998, 0.9998, 0.9996)
+)
+```
+
+Secara performa saya merasa dengan menggunakan `Decision Tree` lebih cocok dibandingkan `Naive Bayes` pada kasus data smoke. Hal ini disebabkan nilai dari 5 metrik diatas relatif lebih tinggi. Artinya Decision Tree relatif dapat mengklasifikasikan `0`(Tidak Terdapat Api) dan `1` (Terdapat Api) dengan sangat baik karena performa dalam membedakan kedua Target di atas mendekati 100 %. Pada kasus ini kita tidak menggangap algoritma Naive Bayes lebih buruk daripada Decision Tree, tetapi menggangap pada kasus data smoke ini cenderung lebih cocok menggunakan algoritma Decision Tree.
+
+# Kesimpulan
+
+Kita telah melalui berbagai proses dalam pembuatan *Machine Learning* yang dapat membedakan Target 0 (Tidak Terdapat Api) dan 1 (Terdapat Api). Pada proses tersebut, kita telah mencoba dua algoritma dalam membangun *Machine Learning* yaitu **Naive Bayes ** dan **Decision Tree**. Selain itu, kita telah mengevaluasi *Machine Learning* dan menghasilkan kesimpulan bahwa dengan algoritma **Decision Tree** memiliki performa relatif lebih baik (lebih cocok) dibandingkan **Naive Bayes**. Harapannya melalui projek ini dapat menjadi referensi dalam membangun *Machine Learning* untuk melakukan klasifikasi sehingga dapat menjadi dasar dalam mengambil keputusan secara efektif dan efisien. Sekian terima kasih banyak yang telah melihat projek ini. Saya juga menyukai masukan dan kolaborasi sehingga apabila ada masukan, saran, kritik atau untuk berkolaborasi dapat menghubungi lewat [Linkedin](https://www.linkedin.com/in/toni-andreas-s).
+
+
+
+
+
+
+
